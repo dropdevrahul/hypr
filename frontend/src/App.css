@@ -1,0 +1,57 @@
+.App {
+  width: 100%;
+  padding: 0.5em !important;
+}
+
+.headersp {
+  padding-left: 1em !important;
+  border: 1px solid #efefef55;
+  padding: 1em !important;
+}
+
+.headers {
+  margin-right: 1em !important;
+  padding-right: 1em !important;
+  text-align: left;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.resultp {
+  border: 1px solid #efefef55;
+  padding: 1em !important;
+}
+
+.result {
+  text-align: left;
+  margin-right: 1em !important;
+  overflow-y: auto;
+}
+
+.url {
+  width:100%;
+  margin: 5px !important;
+}
+
+.make-request {
+  width:100%;
+  margin-left: 1em !important;
+}
+
+#req-button-p {
+  width: 70%;
+  margin: 0px auto;
+}
+
+.header-div {
+  margin-top: 1em !important;
+  color: #82aaff;
+  font-weight: 1000;
+}
+
+.res-div {
+  margin-top: 1em !important;
+  color: #82aaff;
+  font-weight: 1000;
+}
