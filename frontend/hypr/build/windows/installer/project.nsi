@@ -19,7 +19,7 @@ Unicode true
 ####
 ## The following information is taken from the ProjectInfo file, but they can be overwritten here. 
 ####
-## !define INFO_PROJECTNAME    "MyProject" # Default "{{.Name}}"
+## !define INFO_PROJECTNAME    "Hypr" # Default "{{.Name}}"
 ## !define INFO_COMPANYNAME    "MyCompany" # Default "{{.Info.CompanyName}}"
 ## !define INFO_PRODUCTNAME    "MyProduct" # Default "{{.Info.ProductName}}"
 ## !define INFO_PRODUCTVERSION "1.0.0"     # Default "{{.Info.ProductVersion}}"
