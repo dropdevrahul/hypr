@@ -58,13 +58,28 @@ type RequestResult struct {
 }
 
 // Greet returns a greeting for the given name
-func (a *App) MakeRequest(urlIn string, method string) RequestResult {
+func (a *App) MakeRequest(
+	urlIn string,
+	method string,
+	body string,
+	headers string,
+) RequestResult {
 	result := RequestResult{}
-	r, err := http.NewRequest(method, urlIn, nil)
+	rbody := bytes.NewBuffer([]byte(body))
+	r, err := http.NewRequest(method, urlIn, rbody)
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
+
+	reqHeaders := strings.Split(headers, "\n")
+	for _, h := range reqHeaders {
+		if h != "" {
+			hh := strings.Split(h, ":")
+			r.Header.Add(hh[0], strings.Join(hh[1:], ";"))
+		}
+	}
+
 	res, httpResp, err := MakeRequest(a.client, r)
 	if err != nil {
 		result.Error = err.Error()
@@ -76,8 +91,8 @@ func (a *App) MakeRequest(urlIn string, method string) RequestResult {
 		vals := strings.Join(v, "; ")
 		headersArr = append(headersArr, k+": "+vals)
 	}
-	result.HeadersStr = strings.Join(headersArr, "\n")
 
+	result.HeadersStr = strings.Join(headersArr, "\n")
 	b := bytes.NewBuffer(make([]byte, 0, len(res)))
 	err = json.Indent(b, res, "\n", "  ")
 	if err != nil {

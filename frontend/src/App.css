@@ -5,7 +5,6 @@
 
 .headersp {
   padding-left: 1em !important;
-  border: 1px solid #efefef55;
   padding: 1em !important;
 }
 
@@ -14,17 +13,20 @@
   padding-right: 1em !important;
   text-align: left;
   height: auto;
+  color: var(--mui-palette-primary-dark);
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 .resultp {
-  border: 1px solid #efefef55;
   padding: 1em !important;
 }
 
 .result {
   text-align: left;
+  line-height: 0.7em;
+  font-size: 1em;
+  color: var(--mui-palette-success-dark);
   margin-right: 1em !important;
   overflow-y: auto;
 }
@@ -44,14 +46,38 @@
   margin: 0px auto;
 }
 
-.header-div {
+.req-header-div,.body-div,.header-div {
   margin-top: 1em !important;
-  color: #82aaff;
   font-weight: 1000;
 }
 
+
 .res-div {
   margin-top: 1em !important;
-  color: #82aaff;
   font-weight: 1000;
+}
+
+.req-body {
+  width: 100%;
+  padding: 0.5em !important;
+  color: var(--mui-palette-primary-dark) !important;
+  margin: 1em !important;
+  height: auto;
+}
+
+.req-headers {
+  width: 100%;
+  padding: 0.5em !important;
+  color: var(--mui-palette-success-dark) !important;
+  margin: 1em !important;
+  height: auto;
+}
+
+.error-div {
+  margin-top: 1em !important;
+  font-weight: 1000;
+}
+
+.error {
+  color: var(--mui-palette-error-dark);
 }
