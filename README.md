@@ -7,8 +7,10 @@ This is the official Wails React-TS template.
 You can configure the project by editing `wails.json`. More information about the project settings can be found
 here: https://wails.io/docs/reference/project-config
 
-## Live Development
+## Screenshots
+![image](https://github.com/dropdevrahul/hypr/assets/8207870/db511732-cd5d-4f0b-a099-fd16d0ec32c1)
 
+## Live Development
 To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
 server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
 and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
