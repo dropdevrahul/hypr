@@ -1,11 +1,7 @@
-# README
+# Hypr
 
 ## About
-
-This is the official Wails React-TS template.
-
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+A desktop application build using wails and request to perform REST APIs
 
 ## Screenshots
 ![image](https://github.com/dropdevrahul/hypr/assets/8207870/db511732-cd5d-4f0b-a099-fd16d0ec32c1)
@@ -17,5 +13,4 @@ and have access to your Go methods, there is also a dev server that runs on http
 to this in your browser, and you can call your Go code from devtools.
 
 ## Building
-
 To build a redistributable, production mode package, use `wails build`.
