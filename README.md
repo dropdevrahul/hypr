@@ -4,9 +4,11 @@
 A desktop application build using wails and request to perform REST APIs
 
 ## Screenshots
-![image](https://github.com/dropdevrahul/hypr/assets/8207870/db511732-cd5d-4f0b-a099-fd16d0ec32c1)
+![image](https://github.com/dropdevrahul/hypr/assets/8207870/0a1e5ff1-c0e4-4159-84d4-b4c9af09966d)
 
 ## Live Development
+Please install the requiremenys for wails as mentioned here [wails](https://wails.io/docs/gettingstarted/installation/) 
+
 To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
 server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
 and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
