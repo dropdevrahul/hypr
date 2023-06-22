@@ -5,3 +5,7 @@
 export function MakeRequest(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['MakeRequest'](arg1, arg2, arg3, arg4);
 }
+
+export function RunCurl(arg1) {
+  return window['go']['main']['App']['RunCurl'](arg1);
+}

@@ -1,12 +1,15 @@
 import {useState} from 'react';
 import './App.css';
-import {MakeRequest} from "../wailsjs/go/main/App";
+import {MakeRequest, RunCurl} from "../wailsjs/go/main/App";
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2
-import MenuItem from '@mui/material/MenuItem'; // Grid version 2
-import Select from '@mui/material/Select'; // Grid version 2
+import MenuItem from '@mui/material/MenuItem';
+import Modal from '@mui/material/Modal'; 
+import Select from '@mui/material/Select'; 
+import Box from '@mui/material/Box'; 
+import Typography from '@mui/material/Typography'; 
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Experimental_CssVarsProvider as CssVarsProvider,
@@ -22,29 +25,80 @@ const darkTheme = createTheme({
 
 function App() {
     const [resultText, setResultText] = useState("");
+    const [curlBody, setCurlBody] = useState("");
     const [reqMethod, setReqMethod] = useState("GET");
     const [errorText, setErrorText] = useState("");
     const [reqBody, setReqBody] = useState("");
     const [reqHeaders, setReqHeaders] = useState("");
     const [resultHeader, setResultHeader] = useState("");
     const [url, setURL] = useState('');
+    const [open, setOpen] = useState(false);
     const updateURL = (e: any) => setURL(e.target.value);
     const updateResultText = (result: any) =>  {
-      setResultHeader(result.HeadersStr)
+        setResultHeader(result.HeadersStr)
         setResultText(result.Body)
         setErrorText(result.Error)
+    };
+    const updateCurlResult = (result: any) => {
+      setURL(result.URL)
+      setReqBody(result.RequestBody)
+      setReqHeaders(result.ReqHeaders)
+      setReqMethod(result.Method)
+      handleClose()
+    }
+    const handleOpen = () => setOpen(true);
+    const handleClose = () => setOpen(false);
+    const style = {
+        position: 'absolute' as 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 800,
+        bgcolor: 'background.paper',
+        p: 4,
     };
 
     const updateMethod = (e: any) => setReqMethod(e.target.value);
     const updateBody = (e:any) => setReqBody(e.target.value)
     const updateReqHeaders = (e:any) => setReqHeaders(e.target.value)
+    const updateCurlBody = (e:any) => setCurlBody(e.target.value)
     function makeRequest() {
         MakeRequest(url, reqMethod, reqBody, reqHeaders).then(updateResultText);
+    }
+
+    function importCurl() {
+      console.log("importing curl")
+      RunCurl(curlBody).then((result: any)=>{
+        updateResultText(result)
+        updateCurlResult(result)
+      })
     }
     return (
         <CssVarsProvider>
          <CssBaseline />
+         <Modal
+         open={open}
+         onClose={handleClose}
+         aria-labelledby="modal-modal-title"
+         aria-describedby="modal-modal-description"
+         >
+         <Box sx={style}>
+         <Typography id="modal-modal-title" variant="h6" component="h2">
+           Enter Curl
+         </Typography>
+         <Typography id="modal-modal-description" sx={{ mt: 2, width:"100%" }}>
+              <TextField id="reqheaders" multiline rows={10} color="primary" sx={{width:"100%"}}
+                onChange={updateCurlBody} autoComplete="off" name="curl"/>
+         </Typography>
+         <Typography id="modal-modal-menu" sx={{ mt: 2, width:"100%" }}>
+               <Button onClick={importCurl} variant="outlined">Curl</Button>
+         </Typography>
+         </Box>
+         </Modal>
            <Grid container className="App">
+              <Grid xs={1}>
+               <Button onClick={handleOpen} variant="outlined">Curl</Button>
+              </Grid>
               <Grid xs={1}>
                 <Select label="Type" value={reqMethod} className="url" color="success" variant="standard" onChange={updateMethod}>
                   <MenuItem value={"GET"}>GET</MenuItem>
@@ -52,8 +106,8 @@ function App() {
                   <MenuItem value={"PUT"}>PUT</MenuItem>
                 </Select>
               </Grid>
-              <Grid xs={10}>
-                  <TextField id="url" className="url" variant="standard"
+              <Grid xs={9}>
+                  <TextField id="url" className="url" variant="standard" value={url}
                     onChange={updateURL} autoComplete="off" name="url"/>
               </Grid>
               <Grid xs={1}>
@@ -63,7 +117,7 @@ function App() {
               </Grid>
               <Grid xs={4} className="req-headers-p">
                 <Divider textAlign="left" className="req-header-div" color="success"><span>Request Headers</span></Divider>
-                <TextField id="reqheaders" multiline className="req-headers" variant="filled" rows={10} color="success"
+                <TextField id="reqheaders" multiline className="req-headers" variant="filled" rows={10} color="success" value={reqHeaders}
                   onChange={updateReqHeaders} autoComplete="off" name="reqheaders"/>
               </Grid>
               <Grid xs={8} className="req-body-p">

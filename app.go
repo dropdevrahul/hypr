@@ -51,10 +51,47 @@ func MakeRequest(c *http.Client,
 	return body, resp, nil
 }
 
-type RequestResult struct {
+func HeadersToStr(h *http.Header) string {
+	headersArr := []string{}
+	for k, v := range *h {
+		vals := strings.Join(v, "; ")
+		headersArr = append(headersArr, k+": "+vals)
+	}
+
+	result := strings.Join(headersArr, "\n")
+	return result
+}
+
+type RequestFE struct {
 	Body       string
 	HeadersStr string
 	Error      string
+}
+
+type RequestResult struct {
+	Method      string
+	URL         string
+	ReqHeaders  string
+	RequestBody string
+	Body        string
+	HeadersStr  string
+	Error       string
+}
+
+func (a *App) RunCurl(curl string) RequestResult {
+	res := RequestResult{}
+	r, ok := Parse(curl)
+	if !ok {
+		res.Error = "Unable to parse curl"
+		return res
+	}
+
+	res = a.MakeRequest(r.Url, r.Method, r.Body, r.Header.ToString())
+	res.ReqHeaders = r.Header.ToString()
+	res.Method = r.Method
+	res.URL = r.Url
+	res.RequestBody = r.Body
+	return res
 }
 
 // Greet returns a greeting for the given name
@@ -64,7 +101,11 @@ func (a *App) MakeRequest(
 	body string,
 	headers string,
 ) RequestResult {
-	result := RequestResult{}
+	result := RequestResult{
+		URL:         urlIn,
+		Method:      method,
+		RequestBody: body,
+	}
 	rbody := bytes.NewBuffer([]byte(body))
 	r, err := http.NewRequest(method, urlIn, rbody)
 	if err != nil {
@@ -86,13 +127,7 @@ func (a *App) MakeRequest(
 		return result
 	}
 
-	headersArr := []string{}
-	for k, v := range httpResp.Header {
-		vals := strings.Join(v, "; ")
-		headersArr = append(headersArr, k+": "+vals)
-	}
-
-	result.HeadersStr = strings.Join(headersArr, "\n")
+	result.HeadersStr = HeadersToStr(&httpResp.Header)
 	b := bytes.NewBuffer(make([]byte, 0, len(res)))
 	err = json.Indent(b, res, "\n", "  ")
 	if err != nil {
