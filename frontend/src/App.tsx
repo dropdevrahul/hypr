@@ -24,32 +24,45 @@ const darkTheme = createTheme({
   },
 });
 
+class Request {
+    Method: string;
+    URL: string;
+    Headers: string;
+    Body: string;
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.Method = source["Method"];
+        this.URL = source["URL"];
+        this.Headers = source["Headers"];
+        this.Body = source["Body"];
+    }
+}
+
 
 function App() {
+    const [request, setRequest] = useState(new Request({"Method": "GET"}))
     const [result, setResult] = useState(new main.RequestResult)
-    const [resultText, setResultText] = useState("");
     const [curlBody, setCurlBody] = useState("");
-    const [reqMethod, setReqMethod] = useState("GET");
-    const [errorText, setErrorText] = useState("");
-    const [reqBody, setReqBody] = useState("");
-    const [reqHeaders, setReqHeaders] = useState("");
-    const [resultHeader, setResultHeader] = useState("");
-    const [url, setURL] = useState('');
     const [open, setOpen] = useState(false);
-    const updateURL = (e: any) => setURL(e.target.value);
-    const updateResultText = (result: any) =>  {
-        setResult(result)
-        setResultHeader(result.HeadersStr)
-        setResultText(result.Body)
-        setErrorText(result.Error)
+
+
+    const handleRequestChange = (e: any) => {
+      const { name, value } = e.target;
+      setRequest(prevState => ({
+          ...prevState,
+          [name]: value
+      }));
     };
-    const updateCurlResult = (result: any) => {
-      setURL(result.URL)
-      setReqBody(result.RequestBody)
-      setReqHeaders(result.ReqHeaders)
-      setReqMethod(result.Method)
-      handleClose()
-    }
+
+    const handleResultChange = (e: any) => {
+      const { name, value } = e.target;
+      setResult(prevState => ({
+          ...prevState,
+          [name]: value
+      }));
+    };
+
     const handleOpen = () => setOpen(true);
     const handleClose = () => setOpen(false);
     const style = {
@@ -62,19 +75,23 @@ function App() {
         p: 4,
     };
 
-    const updateMethod = (e: any) => setReqMethod(e.target.value);
-    const updateBody = (e:any) => setReqBody(e.target.value)
-    const updateReqHeaders = (e:any) => setReqHeaders(e.target.value)
     const updateCurlBody = (e:any) => setCurlBody(e.target.value)
     function makeRequest() {
-        MakeRequest(url, reqMethod, reqBody, reqHeaders).then(updateResultText);
+        console.log(request)
+        MakeRequest(request.URL, request.Method, request.Body, request.Headers).then(setResult);
     }
 
     function importCurl() {
-      console.log("importing curl")
       RunCurl(curlBody).then((result: any)=>{
-        updateResultText(result)
-        updateCurlResult(result)
+        let req = new Request({
+          "Method": result.Method,
+          "URL": result.URL,
+          "Body": result.RequestBody,
+          "Headers": result.ReqHeaders,
+        })
+        setRequest(req)
+        setResult(result)
+        setOpen(false)
       })
     }
 
@@ -111,15 +128,16 @@ function App() {
                <Button onClick={handleOpen} variant="outlined">Curl</Button>
               </Grid>
               <Grid xs={1}>
-                <Select label="Type" value={reqMethod} className="url" color="success" variant="standard" onChange={updateMethod}>
+                <Select label="Type" value={request.Method} color="success" name="Method"
+                  variant="standard" onChange={handleRequestChange}> 
                   <MenuItem value={"GET"}>GET</MenuItem>
                   <MenuItem value={"POST"}>POST</MenuItem>
                   <MenuItem value={"PUT"}>PUT</MenuItem>
                 </Select>
               </Grid>
               <Grid xs={8}>
-                  <TextField id="url" className="url" variant="standard" value={url}
-                    onChange={updateURL} autoComplete="off" name="url"/>
+                  <TextField id="url" className="url" variant="standard" value={request.URL}
+                    onChange={handleRequestChange} autoComplete="off" name="URL"/>
               </Grid>
               <Grid xs={1}>
                 <div id="req-button-p">
@@ -128,25 +146,25 @@ function App() {
               </Grid>
               <Grid xs={4} className="req-headers-p">
                 <Divider textAlign="left" className="req-header-div" color="success"><span>Request Headers</span></Divider>
-                <TextField id="reqheaders" multiline className="req-headers" variant="filled" rows={10} color="success" value={reqHeaders}
-                  onChange={updateReqHeaders} autoComplete="off" name="reqheaders"/>
+                <TextField id="reqheaders" multiline className="req-headers" variant="filled" rows={10} color="success"
+                  value={request.Headers} onChange={handleResultChange} autoComplete="off" name="Headers"/>
               </Grid>
               <Grid xs={8} className="req-body-p">
                 <Divider textAlign="left" className="body-div" color="primary"><span>Request Body</span></Divider>
                 <TextField id="url" multiline className="req-body" variant="filled" rows={10} color="primary"
-                  onChange={updateBody} autoComplete="off" name="reqbody"/>
+                  onChange={handleResultChange} value={result.RequestBody} autoComplete="off" name="RequestBody"/>
               </Grid>
               <Grid xs={4} className="headersp">
                 <Divider textAlign="left" className="header-div"><span color='#82aaff'>Headers</span></Divider>
-                <div id="headers" className="headers"><pre>{resultHeader}</pre></div>
+                <div id="headers" className="headers"><pre>{result.HeadersStr}</pre></div>
               </Grid>
               <Grid xs={8} className="resultp">
                 <Divider textAlign="left" className="res-div"><span color='#c3e88d'>Response</span></Divider>
-                <div id="result" className="result"><pre>{resultText}</pre></div>
+                <div id="result" className="result"><pre>{result.Body}</pre></div>
               </Grid>
               <Grid xs={12} className="errorp">
                 <Divider textAlign="left" className="error-div" color="error">Error</Divider>
-                <div id="error" className="error"><pre>{errorText}</pre></div>
+                <div id="error" className="error"><pre>{result.Error}</pre></div>
               </Grid>
           </Grid>
         </CssVarsProvider>
