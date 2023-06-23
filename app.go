@@ -62,20 +62,14 @@ func HeadersToStr(h *http.Header) string {
 	return result
 }
 
-type RequestFE struct {
-	Body       string
-	HeadersStr string
-	Error      string
-}
-
 type RequestResult struct {
-	Method      string
-	URL         string
-	ReqHeaders  string
-	RequestBody string
-	Body        string
-	HeadersStr  string
-	Error       string
+	Method      string `json:"Method"`
+	URL         string `json:"URL"`
+	ReqHeaders  string `json:"ReqHeaders"`
+	RequestBody string `json:"RequestBody"`
+	Body        string `json:"Body"`
+	HeadersStr  string `json:"HeadersStr"`
+	Error       string `json:"Error"`
 }
 
 func (a *App) RunCurl(curl string) RequestResult {

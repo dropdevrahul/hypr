@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import './App.css';
-import {MakeRequest, RunCurl} from "../wailsjs/go/main/App";
+import {MakeRequest, RunCurl, Export} from "../wailsjs/go/main/App";
+import {main} from "../wailsjs/go/models";
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
@@ -10,6 +11,7 @@ import Modal from '@mui/material/Modal';
 import Select from '@mui/material/Select'; 
 import Box from '@mui/material/Box'; 
 import Typography from '@mui/material/Typography'; 
+import SaveIcon from '@mui/icons-material/Save';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Experimental_CssVarsProvider as CssVarsProvider,
@@ -24,6 +26,7 @@ const darkTheme = createTheme({
 
 
 function App() {
+    const [result, setResult] = useState(new main.RequestResult)
     const [resultText, setResultText] = useState("");
     const [curlBody, setCurlBody] = useState("");
     const [reqMethod, setReqMethod] = useState("GET");
@@ -35,6 +38,7 @@ function App() {
     const [open, setOpen] = useState(false);
     const updateURL = (e: any) => setURL(e.target.value);
     const updateResultText = (result: any) =>  {
+        setResult(result)
         setResultHeader(result.HeadersStr)
         setResultText(result.Body)
         setErrorText(result.Error)
@@ -73,6 +77,10 @@ function App() {
         updateCurlResult(result)
       })
     }
+
+    function handleExport() {
+      Export(result)
+    }
     return (
         <CssVarsProvider>
          <CssBaseline />
@@ -97,6 +105,9 @@ function App() {
          </Modal>
            <Grid container className="App">
               <Grid xs={1}>
+               <Button onClick={handleExport} variant="outlined"><SaveIcon></SaveIcon></Button>
+              </Grid>
+              <Grid xs={1}>
                <Button onClick={handleOpen} variant="outlined">Curl</Button>
               </Grid>
               <Grid xs={1}>
@@ -106,7 +117,7 @@ function App() {
                   <MenuItem value={"PUT"}>PUT</MenuItem>
                 </Select>
               </Grid>
-              <Grid xs={9}>
+              <Grid xs={8}>
                   <TextField id="url" className="url" variant="standard" value={url}
                     onChange={updateURL} autoComplete="off" name="url"/>
               </Grid>

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"log"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -12,6 +13,7 @@ import (
 var assets embed.FS
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	// Create an instance of the app structure
 	app := NewApp()
 
