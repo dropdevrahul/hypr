@@ -25,11 +25,11 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	tr := &http.Transport{
-		MaxIdleConns:    2,
-		IdleConnTimeout: 5 * time.Second,
+		MaxIdleConns:    10,
+		IdleConnTimeout: 50 * time.Second,
 	}
 	a.client = &http.Client{
-		Timeout:   5 * time.Second,
+		Timeout:   50 * time.Second,
 		Transport: tr,
 	}
 	a.ctx = ctx

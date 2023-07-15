@@ -1,60 +1,18 @@
-.App {
-  width: 100%;
-  padding: 0.5em !important;
+body {
+  line-height: 1 !important;
+  letter-spacing: normal !important;
+  width: 100vw;
 }
 
-.headersp {
-  padding-left: 1em !important;
-  padding: 1em !important;
+.__json-pretty__ {
+  padding-top: 0;
+  margin-top: 0;
 }
 
-.headers {
-  margin-right: 1em !important;
-  padding-right: 1em !important;
-  text-align: left;
-  height: auto;
-  color: var(--mui-palette-primary-dark);
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.resultp {
-  padding: 1em !important;
-}
-
-.result {
-  text-align: left;
-  line-height: 0.7em;
+.headers label {
+  font-weight: 600;
   font-size: 1em;
-  color: var(--mui-palette-success-dark);
-  margin-right: 1em !important;
-  overflow-y: auto;
-}
-
-.url {
-  width:100%;
-  margin: 5px !important;
-}
-
-.make-request {
-  width:100%;
-  margin-left: 1em !important;
-}
-
-#req-button-p {
-  width: 70%;
-  margin: 0px auto;
-}
-
-.req-header-div,.body-div,.header-div {
-  margin-top: 1em !important;
-  font-weight: 1000;
-}
-
-
-.res-div {
-  margin-top: 1em !important;
-  font-weight: 1000;
+  color: var(--mui-palette-primary-dark);
 }
 
 .req-body {

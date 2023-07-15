@@ -3,20 +3,30 @@ import './App.css';
 import {MakeRequest, RunCurl, Export} from "../wailsjs/go/main/App";
 import {main} from "../wailsjs/go/models";
 import Button from '@mui/material/Button';
+import ButtonGroup from '@mui/material/ButtonGroup';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2
 import MenuItem from '@mui/material/MenuItem';
 import Modal from '@mui/material/Modal'; 
+import InputLabel from '@mui/material/InputLabel';
+import FormLabel from '@mui/material/FormLabel';
+import FormControl from '@mui/material/FormControl';
 import Select from '@mui/material/Select'; 
 import Box from '@mui/material/Box'; 
 import Typography from '@mui/material/Typography'; 
 import SaveIcon from '@mui/icons-material/Save';
+import AddIcon from '@mui/icons-material/Add';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   Experimental_CssVarsProvider as CssVarsProvider,
 } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import {Margin} from '@mui/icons-material';
+import JSONPretty from 'react-json-pretty';
+import 'react-json-pretty/themes/monikai.css';
 
 const darkTheme = createTheme({
   palette: {
@@ -41,11 +51,13 @@ class Request {
 
 
 function App() {
+    const [value, setValue] = useState('one');
+    const [reqBodies, setReqBodies] = useState([""])
+    const [activeReqBody, setActiveReqBody] = useState(0)
     const [request, setRequest] = useState(new Request({"Method": "GET"}))
     const [result, setResult] = useState(new main.RequestResult)
     const [curlBody, setCurlBody] = useState("");
     const [open, setOpen] = useState(false);
-
 
     const handleRequestChange = (e: any) => {
       const { name, value } = e.target;
@@ -63,6 +75,20 @@ function App() {
       }));
     };
 
+    const updateActiveReqTab = (e:any) => {
+      setActiveReqBody(e.target.value)
+    }
+
+    const addReqBody = (e:any) => {
+      reqBodies.push("{}")
+      setReqBodies([...reqBodies]) 
+    }
+
+    const updateReqBody = (e: any) => {
+      reqBodies[activeReqBody] = e.target.value
+      setReqBodies([...reqBodies]) 
+    }
+
     const handleOpen = () => setOpen(true);
     const handleClose = () => setOpen(false);
     const style = {
@@ -77,8 +103,7 @@ function App() {
 
     const updateCurlBody = (e:any) => setCurlBody(e.target.value)
     function makeRequest() {
-        console.log(request)
-        MakeRequest(request.URL, request.Method, request.Body, request.Headers).then(setResult);
+        MakeRequest(request.URL, request.Method, reqBodies[activeReqBody], request.Headers).then(setResult);
     }
 
     function importCurl() {
@@ -98,9 +123,16 @@ function App() {
     function handleExport() {
       Export(result)
     }
+
+    const darkTheme = createTheme({
+      palette: {
+        mode: 'dark',
+      },
+    });
+
     return (
-        <CssVarsProvider>
-         <CssBaseline />
+        <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
          <Modal
          open={open}
          onClose={handleClose}
@@ -120,54 +152,87 @@ function App() {
          </Typography>
          </Box>
          </Modal>
-           <Grid container className="App">
-              <Grid xs={1}>
-               <Button onClick={handleExport} variant="outlined"><SaveIcon></SaveIcon></Button>
-              </Grid>
-              <Grid xs={1}>
-               <Button onClick={handleOpen} variant="outlined">Curl</Button>
-              </Grid>
-              <Grid xs={1}>
-                <Select label="Type" value={request.Method} color="success" name="Method"
-                  variant="standard" onChange={handleRequestChange}> 
-                  <MenuItem value={"GET"}>GET</MenuItem>
-                  <MenuItem value={"POST"}>POST</MenuItem>
-                  <MenuItem value={"PUT"}>PUT</MenuItem>
-                </Select>
-              </Grid>
-              <Grid xs={8}>
-                  <TextField id="url" className="url" variant="standard" value={request.URL}
+          <Box>
+           <Grid container spacing={1} sx={{m:0}}>
+              <Grid xs={12} sx={{marginTop: "1em"}}>
+                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom"}} size="small" variant='standard'>
+                  <Select label="Method" value={request.Method}
+                    color="success" name="Method"
+                    onChange={handleRequestChange} autoWidth size="small">  
+                    <MenuItem value={"GET"}>GET</MenuItem>
+                    <MenuItem value={"POST"}>POST</MenuItem>
+                    <MenuItem value={"PUT"}>PUT</MenuItem>
+                  </Select>
+                </FormControl>
+                 <FormControl sx={{width: "70%", verticalAlign:"bottom"}} size="small">
+                  <TextField id="url" variant="standard" value={request.URL} size="small" fullWidth
                     onChange={handleRequestChange} autoComplete="off" name="URL"/>
+                </FormControl>
+                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom"}} size="small">
+                  <Button className="make-request" variant="contained" onClick={makeRequest} size="small">Go</Button>
+                </FormControl>
+                <span style={{margin: "0.5rem"}}></span>
+                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom", flexFlow:"right"}}>
+                <ButtonGroup size="small">
+                 <Button onClick={handleExport} variant="outlined"><SaveIcon></SaveIcon></Button>
+                 <Button onClick={handleOpen} variant="contained" color="secondary">Import Curl</Button>
+                </ButtonGroup>
+                </FormControl>
               </Grid>
-              <Grid xs={1}>
-                <div id="req-button-p">
-                  <Button className="make-request" color="primary" variant="contained" onClick={makeRequest}>Go</Button>
-                </div>
+            </Grid>
+           <Grid container spacing={1} className="headers" sx={{marginTop: 0.5}}>
+                <Grid xs={3}>
+                    <FormLabel>Request Header</FormLabel>
+                </Grid>
+                <Grid xs={4}>
+                    <FormLabel>Request Body</FormLabel>
+                    <ButtonGroup sx={{margin: "0 5px"}}>
+                      { 
+                        reqBodies.map( (d, index) => <Button
+                          key={index} style={{padding: "0em", minWidth: "2rem"}}
+                          variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                          >{index+1}</Button>)
+                      }
+                      <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon/></Button>
+                    </ButtonGroup>
+                </Grid>
+                <Grid xs={5}>
+                  <FormLabel>
+                    Response
+                  </FormLabel>
+                </Grid>
+            </Grid>
+           <Grid container spacing={1} sx={{marginTop: 0.5}}>
+              <Grid xs={3}>
+                <TextField multiline variant="filled" rows={15} color="success" sx={{width:"100%"}}
+                  value={request.Headers} onChange={handleRequestChange}
+                  autoComplete="off" name="Headers"/>
               </Grid>
-              <Grid xs={4} className="req-headers-p">
-                <Divider textAlign="left" className="req-header-div" color="success"><span>Request Headers</span></Divider>
-                <TextField id="reqheaders" multiline className="req-headers" variant="filled" rows={10} color="success"
-                  value={request.Headers} onChange={handleResultChange} autoComplete="off" name="Headers"/>
+              <Grid xs={4}>
+                <TextField sx={{width: "100%"}} multiline variant="filled" rows={15} color="primary"
+                  onChange={updateReqBody} value={reqBodies[activeReqBody]} autoComplete="off" name="RequestBody"/>
               </Grid>
-              <Grid xs={8} className="req-body-p">
-                <Divider textAlign="left" className="body-div" color="primary"><span>Request Body</span></Divider>
-                <TextField id="url" multiline className="req-body" variant="filled" rows={10} color="primary"
-                  onChange={handleResultChange} value={result.RequestBody} autoComplete="off" name="RequestBody"/>
+              <Grid xs={5} sx={{overflowY: "auto"}}>
+                <JSONPretty data={result.Body}></JSONPretty>
               </Grid>
-              <Grid xs={4} className="headersp">
-                <Divider textAlign="left" className="header-div"><span color='#82aaff'>Headers</span></Divider>
-                <div id="headers" className="headers"><pre>{result.HeadersStr}</pre></div>
+            </Grid>
+           <Grid container spacing={1} className="headers">
+              <Grid xs={3}>
+                <FormLabel>
+                  Response Header
+                </FormLabel>
+                <JSONPretty data={result.HeadersStr}></JSONPretty>
               </Grid>
-              <Grid xs={8} className="resultp">
-                <Divider textAlign="left" className="res-div"><span color='#c3e88d'>Response</span></Divider>
-                <div id="result" className="result"><pre>{result.Body}</pre></div>
-              </Grid>
-              <Grid xs={12} className="errorp">
-                <Divider textAlign="left" className="error-div" color="error">Error</Divider>
-                <div id="error" className="error"><pre>{result.Error}</pre></div>
+
+              <Grid xs={4}>
+                <FormLabel>
+                  Error
+                </FormLabel>
+                <JSONPretty data={result.Error}></JSONPretty>
               </Grid>
           </Grid>
-        </CssVarsProvider>
+          </Box>
+        </ThemeProvider>
     )
 }
 
