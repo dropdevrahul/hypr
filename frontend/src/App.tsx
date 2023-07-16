@@ -53,6 +53,8 @@ class Request {
 function App() {
     const [value, setValue] = useState('one');
     const [reqBodies, setReqBodies] = useState([""])
+    const [reqHeaders, setReqHeaders] = useState([""])
+    const [responses, setResponses] = useState([new main.RequestResult])
     const [activeReqBody, setActiveReqBody] = useState(0)
     const [request, setRequest] = useState(new Request({"Method": "GET"}))
     const [result, setResult] = useState(new main.RequestResult)
@@ -80,8 +82,12 @@ function App() {
     }
 
     const addReqBody = (e:any) => {
-      reqBodies.push("{}")
+      reqBodies.push(reqBodies[activeReqBody])
+      reqHeaders.push(reqHeaders[activeReqBody])
+      responses.push(responses[activeReqBody])
       setReqBodies([...reqBodies]) 
+      setResponses([...responses])
+      setReqHeaders([...reqHeaders])
     }
 
     const updateReqBody = (e: any) => {
@@ -103,7 +109,12 @@ function App() {
 
     const updateCurlBody = (e:any) => setCurlBody(e.target.value)
     function makeRequest() {
-        MakeRequest(request.URL, request.Method, reqBodies[activeReqBody], request.Headers).then(setResult);
+        MakeRequest(request.URL, request.Method,
+          reqBodies[activeReqBody],
+          reqHeaders[activeReqBody]).then((r: main.RequestResult) => {
+            setResult(r)
+            responses[activeReqBody] = r
+          });
     }
 
     function importCurl() {
@@ -154,8 +165,8 @@ function App() {
          </Modal>
           <Box>
            <Grid container spacing={1} sx={{m:0}}>
-              <Grid xs={12} sx={{marginTop: "1em"}}>
-                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom"}} size="small" variant='standard'>
+              <Grid xs={12} sm={12} md={10} lg={11} sx={{marginTop: "1em"}}>
+                <FormControl sx={{width: "10%", verticalAlign:"bottom"}} size="small" variant='standard'>
                   <Select label="Method" value={request.Method}
                     color="success" name="Method"
                     onChange={handleRequestChange} autoWidth size="small">  
@@ -164,27 +175,40 @@ function App() {
                     <MenuItem value={"PUT"}>PUT</MenuItem>
                   </Select>
                 </FormControl>
-                 <FormControl sx={{width: "70%", verticalAlign:"bottom"}} size="small">
+
+                <FormControl sx={{width: "85%", verticalAlign:"bottom"}} size="small">
                   <TextField id="url" variant="standard" value={request.URL} size="small" fullWidth
                     onChange={handleRequestChange} autoComplete="off" name="URL"/>
                 </FormControl>
-                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom"}} size="small">
+
+                <FormControl sx={{width: "5%",verticalAlign:"bottom"}} size="small">
                   <Button className="make-request" variant="contained" onClick={makeRequest} size="small">Go</Button>
                 </FormControl>
-                <span style={{margin: "0.5rem"}}></span>
-                <FormControl sx={{minWidth: "5%", verticalAlign:"bottom", flexFlow:"right"}}>
-                <ButtonGroup size="small">
-                 <Button onClick={handleExport} variant="outlined"><SaveIcon></SaveIcon></Button>
-                 <Button onClick={handleOpen} variant="contained" color="secondary">Import Curl</Button>
-                </ButtonGroup>
+              </Grid>
+              <Grid xs={2} sm={2} md={2} lg={1} sx={{marginTop: "1em"}}>
+                <FormControl sx={{verticalAlign:"bottom", width: "100%"}}>
+                  <ButtonGroup size="small" style={{marginLeft: "auto"}}>
+                   <Button onClick={handleExport} variant="outlined"><SaveIcon></SaveIcon></Button>
+                   <Button onClick={handleOpen} variant="contained" color="secondary"> Curl</Button>
+                  </ButtonGroup>
                 </FormControl>
               </Grid>
             </Grid>
+
            <Grid container spacing={1} className="headers" sx={{marginTop: 0.5}}>
-                <Grid xs={3}>
-                    <FormLabel>Request Header</FormLabel>
-                </Grid>
                 <Grid xs={4}>
+                    <FormLabel>Request Header</FormLabel>
+                    <ButtonGroup sx={{margin: "0 5px"}}>
+                      { 
+                        reqHeaders.map( (d, index) => <Button
+                          key={index} style={{padding: "0em", minWidth: "2rem"}}
+                          variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                          >{index+1}</Button>)
+                      }
+                      <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon/></Button>
+                    </ButtonGroup>
+                </Grid>
+                <Grid xs={8}>
                     <FormLabel>Request Body</FormLabel>
                     <ButtonGroup sx={{margin: "0 5px"}}>
                       { 
@@ -196,41 +220,60 @@ function App() {
                       <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon/></Button>
                     </ButtonGroup>
                 </Grid>
-                <Grid xs={5}>
-                  <FormLabel>
-                    Response
-                  </FormLabel>
-                </Grid>
             </Grid>
+
            <Grid container spacing={1} sx={{marginTop: 0.5}}>
-              <Grid xs={3}>
+              <Grid xs={4}>
                 <TextField multiline variant="filled" rows={15} color="success" sx={{width:"100%"}}
-                  value={request.Headers} onChange={handleRequestChange}
+                  value={reqHeaders[activeReqBody]} onChange={handleRequestChange}
                   autoComplete="off" name="Headers"/>
               </Grid>
-              <Grid xs={4}>
+              <Grid xs={8}>
                 <TextField sx={{width: "100%"}} multiline variant="filled" rows={15} color="primary"
                   onChange={updateReqBody} value={reqBodies[activeReqBody]} autoComplete="off" name="RequestBody"/>
               </Grid>
-              <Grid xs={5} sx={{overflowY: "auto"}}>
-                <JSONPretty data={result.Body}></JSONPretty>
-              </Grid>
-            </Grid>
-           <Grid container spacing={1} className="headers">
-              <Grid xs={3}>
+           </Grid>
+
+             <Grid container spacing={1} className="headers" sx={{m: 0.5}}>
+                <Grid xs={4}>
                 <FormLabel>
                   Response Header
                 </FormLabel>
-                <JSONPretty data={result.HeadersStr}></JSONPretty>
+                </Grid>
+                <Grid xs={8}>
+                  <FormLabel>
+                    Response
+                  </FormLabel>
+                  <ButtonGroup sx={{margin: "0 5px"}}>
+                    { 
+                      responses.map( (d, index) => <Button
+                        key={index} style={{padding: "0em", minWidth: "2rem"}}
+                        variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                        >{index+1}</Button>)
+                    }
+                    <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon/></Button>
+                    </ButtonGroup>
+                </Grid>
               </Grid>
-
-              <Grid xs={4}>
-                <FormLabel>
-                  Error
-                </FormLabel>
-                <JSONPretty data={result.Error}></JSONPretty>
-              </Grid>
-          </Grid>
+             <Grid container spacing={1}>
+                <Grid xs={4}>
+                  <Typography color="primary"><span style={{fontWeight: 700}}>URL</span>: {responses[activeReqBody].URL}</Typography>
+                  <JSONPretty data={result.HeadersStr}></JSONPretty>
+                </Grid>
+                <Grid xs={8} sx={{overflowY: "auto"}}>
+                  <JSONPretty data={responses[activeReqBody].Body}></JSONPretty>
+                </Grid>
+             </Grid>
+             <Grid container spacing={1}>
+                <Grid xs={3}>
+                  <FormLabel>
+                    Error
+                  </FormLabel>
+                </Grid>
+                <Grid xs={3}>
+                  <JSONPretty data={result.Error}></JSONPretty>
+                </Grid>
+             </Grid>
           </Box>
         </ThemeProvider>
     )

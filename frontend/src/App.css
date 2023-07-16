@@ -9,6 +9,10 @@ body {
   margin-top: 0;
 }
 
+.headers {
+  margin-top: 1em;
+}
+
 .headers label {
   font-weight: 600;
   font-size: 1em;
