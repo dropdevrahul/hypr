@@ -1,7 +1,7 @@
 # Hypr
 
 ## About
-A desktop application build using wails and request to perform REST APIs
+A desktop application build using wails and reactjs to perform REST APIs
 
 ## Screenshots
 ![example](examples/hypr2.png)
