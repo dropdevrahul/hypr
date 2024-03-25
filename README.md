@@ -4,7 +4,7 @@
 A desktop application build using wails and request to perform REST APIs
 
 ## Screenshots
-![image](https://user-images.githubusercontent.com/8207870/253748179-ec753102-4f7d-4e57-b809-a4ac658febaa.png)
+![examples/hypr2.png]
 
 ## Live Development
 Please install the requiremenys for wails as mentioned here [wails](https://wails.io/docs/gettingstarted/installation/) 
