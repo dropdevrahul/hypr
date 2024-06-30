@@ -8,7 +8,7 @@ A desktop application build using wails and reactjs to perform REST APIs
 
 ## Live Development
 Install Go requirements using `go mod tidy`
-Please install the requiremenys for wails as mentioned here [wails](https://wails.io/docs/gettingstarted/installation/)  or use the `wails doctor` command
+Please install the requirements for wails as mentioned here [wails](https://wails.io/docs/gettingstarted/installation/)  or use the `wails doctor` command
 
 To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
 server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
