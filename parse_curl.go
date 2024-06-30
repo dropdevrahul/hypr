@@ -9,9 +9,9 @@ import (
 	"github.com/mattn/go-shellwords"
 )
 
-type Header map[string]string
+type Headers map[string]string
 
-func (h *Header) ToString() string {
+func (h *Headers) ToString() string {
 	headersArr := []string{}
 	for k, v := range *h {
 		headersArr = append(headersArr, k+": "+v)
@@ -21,10 +21,10 @@ func (h *Header) ToString() string {
 }
 
 type Request struct {
-	Method string `json:"method"`
-	Url    string `json:"url"`
-	Header Header `json:"header"`
-	Body   string `json:"body"`
+	Method string  `json:"method"`
+	Url    string  `json:"url"`
+	Header Headers `json:"header"`
+	Body   string  `json:"body"`
 }
 
 func (r *Request) ToJson(format bool) string {
@@ -53,7 +53,7 @@ func Parse(curl string) (*Request, bool) {
 	}
 
 	args = rewrite(args)
-	request := &Request{Method: "GET", Header: Header{}}
+	request := &Request{Method: "GET", Header: Headers{}}
 	state := ""
 
 	for _, arg := range args {

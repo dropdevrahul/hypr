@@ -10,29 +10,23 @@ import Grid from '@mui/material/Unstable_Grid2'; // Grid version 2
 import MenuItem from '@mui/material/MenuItem';
 import Modal from '@mui/material/Modal';
 import InputLabel from '@mui/material/InputLabel';
-import FormLabel from '@mui/material/FormLabel';
 import FormControl from '@mui/material/FormControl';
 import Select from '@mui/material/Select';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
-import {
-  Experimental_CssVarsProvider as CssVarsProvider,
-} from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import {Margin} from '@mui/icons-material';
 import JSONPretty from 'react-json-pretty';
 import 'react-json-pretty/themes/monikai.css';
-import {dark} from '@mui/material/styles/createPalette';
+import {Header} from './lib/header';
+import {RequestHeader} from './components/headerform';
 
 class Request {
   Method: string;
   URL: string;
-  Headers: string;
+  Headers: Header;
   Body: string;
 
   constructor(source: any = {}) {
@@ -48,9 +42,19 @@ class Request {
 function App() {
   const [value, setValue] = useState('one');
   const [reqBodies, setReqBodies] = useState([""])
-  const [reqHeaders, setReqHeaders] = useState([""])
+  const [reqHeaders, setReqHeaders] = useState<Array<Array<Header>>>([[
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+    {Key: "", Value: ""},
+  ]]);
+
   const [responses, setResponses] = useState([new main.RequestResult])
   const [activeReqBody, setActiveReqBody] = useState(0)
+  const [activeReqHeader, setActiveReqHeader] = useState(0)
   const [request, setRequest] = useState(new Request({"Method": "GET"}))
   const [result, setResult] = useState(new main.RequestResult)
   const [curlBody, setCurlBody] = useState("");
@@ -74,6 +78,7 @@ function App() {
 
   const updateActiveReqTab = (e: any) => {
     setActiveReqBody(e.target.value)
+    setActiveReqHeader(e.target.value)
   }
 
   const addReqBody = (e: any) => {
@@ -103,10 +108,18 @@ function App() {
   };
 
   const updateCurlBody = (e: any) => setCurlBody(e.target.value)
+  const headers: Map<string, string> = new Map<string, string>
+
+  for (let k of reqHeaders[activeReqBody]) {
+    headers.set(k.Key, k.Value)
+  }
+
+  console.log(headers)
+
   function makeRequest() {
     MakeRequest(request.URL, request.Method,
       reqBodies[activeReqBody],
-      reqHeaders[activeReqBody]).then((r: main.RequestResult) => {
+      headers).then((r: main.RequestResult) => {
         setResult(r)
         responses[activeReqBody] = r
       });
@@ -171,7 +184,7 @@ function App() {
             <Typography id="modal-modal-menu" sx={{mt: 2, width: "100%"}}>
               <Button onClick={importCurl} variant="contained"
                 color='secondary'
-                >Curl</Button>
+              >Curl</Button>
             </Typography>
           </Box>
         </Modal>
@@ -179,7 +192,7 @@ function App() {
           <Grid container spacing={1} alignItems="end">
             <Grid xs={2} sm={2} md={2} lg={1} sx={{marginTop: "1em"}}>
               <FormControl fullWidth variant='filled'>
-                  <InputLabel>Method</InputLabel>
+                <InputLabel>Method</InputLabel>
                 <Select label="Method" value={request.Method}
                   color="success" name="Method" variant="filled"
                   onChange={handleRequestChange}>
@@ -209,20 +222,25 @@ function App() {
               </FormControl>
             </Grid>
           </Grid>
-          <Grid container spacing={1} className="headers">
-            <Grid xs={4}>
+          <Box marginY={4}></Box>
+          <Grid container spacing={1}>
+            <Grid xs={5} flexDirection="column" flex="flex">
               <ButtonGroup>
                 <Button color="success">Request Headers</Button>
                 {
-                  reqHeaders.map((d, index) => <Button
-                    key={index} style={{padding: "0em", minWidth: "2rem"}}
-                    variant="contained" value={index} color="success" onClick={updateActiveReqTab}
-                  >{index + 1}</Button>)
+                  reqHeaders.map((d, index) =>
+                    <Button
+                      key={index}
+                      variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                    >{index + 1}</Button>)
                 }
-                <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon /></Button>
+                <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}>
+                  <AddIcon />
+                </Button>
               </ButtonGroup>
+              <RequestHeader activeReqHeader={activeReqHeader} reqHeaders={reqHeaders}></RequestHeader>
             </Grid>
-            <Grid xs={8}>
+            <Grid xs={7}>
               <ButtonGroup>
                 <Button color="success">Request Body</Button>
                 {
@@ -233,27 +251,18 @@ function App() {
                 }
                 <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon /></Button>
               </ButtonGroup>
+              <TextField margin='dense' rows={16} sx={{width: "100%", height: "100%"}}
+                multiline variant="outlined" color="primary"
+                className="textarea"
+                onChange={updateReqBody} value={reqBodies[activeReqBody]}
+                autoComplete="off" name="RequestBody" />
             </Grid>
           </Grid>
-
+          <Box marginY={4}></Box>
           <Grid container spacing={1}>
-            <Grid xs={4}>
-              <TextField multiline variant="filled" rows={15} color="success" sx={{width: "100%"}}
-                className="textarea"
-                value={reqHeaders[activeReqBody]} onChange={handleRequestChange}
-                autoComplete="off" name="Headers" />
-            </Grid>
-            <Grid xs={8}>
-              <TextField sx={{width: "100%"}} multiline variant="filled" rows={15} color="primary"
-                className="textarea"
-                onChange={updateReqBody} value={reqBodies[activeReqBody]} autoComplete="off" name="RequestBody" />
-            </Grid>
-          </Grid>
-
-          <Grid container spacing={1} className="headers">
-            <Grid xs={4}>
+            <Grid xs={5}>
               <ButtonGroup>
-              <Button color="success">Response Headers</Button>
+                <Button color="success">Response Headers</Button>
                 {
                   responses.map((d, index) => <Button
                     key={index} style={{padding: "0em", minWidth: "2rem"}}
@@ -262,10 +271,12 @@ function App() {
                 }
                 <Button color="success" onClick={addReqBody}><AddIcon /></Button>
               </ButtonGroup>
+              <JSONPretty style={{minHeight: "400px"}} 
+                data={result.HeadersStr} className="json-pretty textarea"></JSONPretty>
             </Grid>
-            <Grid xs={8}>
+            <Grid xs={7} sx={{overflowY: "auto"}}>
               <ButtonGroup>
-              <Button color="success">Response Body</Button>
+                <Button color="success">Response Body</Button>
                 {
                   responses.map((d, index) => <Button
                     key={index} style={{padding: "0em", minWidth: "2rem"}}
@@ -274,13 +285,6 @@ function App() {
                 }
                 <Button color="success" onClick={addReqBody}><AddIcon /></Button>
               </ButtonGroup>
-            </Grid>
-          </Grid>
-          <Grid container spacing={1}>
-            <Grid xs={4}>
-              <JSONPretty data={result.HeadersStr} className="json-pretty textarea"></JSONPretty>
-            </Grid>
-            <Grid xs={8} sx={{overflowY: "auto"}}>
               <JSONPretty data={responses[activeReqBody].Body} className="json-pretty textarea" ></JSONPretty>
             </Grid>
           </Grid>

@@ -4,6 +4,6 @@ import {main} from '../models';
 
 export function Export(arg1:main.RequestResult):Promise<void>;
 
-export function MakeRequest(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.RequestResult>;
+export function MakeRequest(arg1:string,arg2:string,arg3:string,arg4:main.Headers):Promise<main.RequestResult>;
 
 export function RunCurl(arg1:string):Promise<main.RequestResult>;

@@ -80,7 +80,7 @@ func (a *App) RunCurl(curl string) RequestResult {
 		return res
 	}
 
-	res = a.MakeRequest(r.Url, r.Method, r.Body, r.Header.ToString())
+	res = a.MakeRequest(r.Url, r.Method, r.Body, r.Header)
 	res.ReqHeaders = r.Header.ToString()
 	res.Method = r.Method
 	res.URL = r.Url
@@ -88,12 +88,17 @@ func (a *App) RunCurl(curl string) RequestResult {
 	return res
 }
 
+type Header struct {
+	Key   string
+	value string
+}
+
 // Greet returns a greeting for the given name
 func (a *App) MakeRequest(
 	urlIn string,
 	method string,
 	body string,
-	headers string,
+	headers Headers,
 ) RequestResult {
 	result := RequestResult{
 		URL:         urlIn,
@@ -107,12 +112,8 @@ func (a *App) MakeRequest(
 		return result
 	}
 
-	reqHeaders := strings.Split(headers, "\n")
-	for _, h := range reqHeaders {
-		if h != "" {
-			hh := strings.Split(h, ":")
-			r.Header.Add(hh[0], strings.Join(hh[1:], ";"))
-		}
+	for key, value := range headers {
+		r.Header.Add(key, value)
 	}
 
 	res, httpResp, err := MakeRequest(a.client, r)
