@@ -1,28 +1,32 @@
 import {TextField, Checkbox, FormControlLabel, Box} from "@mui/material";
+import {useState} from "react";
 import {Header} from "../lib/header";
 
 export interface HeaderProps {
-  activeReqHeader: number
-  reqHeaders: Header[][]
+  header: Header
+  update: (h: Header) => void
 }
 
 export const RequestHeader = (props: HeaderProps) => {
-
+  console.log(props.header)
   return (
-    <>
-      {
-        props.reqHeaders[props.activeReqHeader].map((d: Header, index: number) =>
         <Box flex="flex" flexDirection="row">
           <Checkbox name="enabled" size="small"></Checkbox>
           <TextField margin="dense" size='small' style={{width: "30%"}}
-            key={index} variant="filled" placeholder="Key" onChange={(e)=> d.Key=e.target.value}
-          >{d.Key}</TextField>
+            variant="filled" placeholder="Key" onBlur={(e)=> {
+              props.header.Key=e.target.value
+              props.update(props.header)
+            }} value={props.header.Key}
+          ></TextField>
           <TextField margin='dense' style={{marginLeft: "4px", width: "60%"}}
-            size='small' variant='filled' placeholder="Value" onChange={(e)=> d.Value=e.target.value}>
-            {d.Value}</TextField>
-        </Box>)
-      }
-    </>
+            size='small' variant='filled' placeholder="Value" onBlur={(e)=> {
+              props.header.Value=e.target.value
+              props.update(props.header)
+            }}
+            value={props.header.Value}
+            >
+            </TextField>
+        </Box>
   )
 }
 

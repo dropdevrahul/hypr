@@ -9,7 +9,14 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func (a *App) Export(r RequestResult) error {
+type ExportFormat struct {
+	Request        Request
+	RequestHeaders [][]Header
+	RequestBodies  []string
+	Result         RequestResult
+}
+
+func (a *App) Export(req Request, reqHeaders [][]Header, reqBodies []string, r RequestResult) error {
 	filepath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		DefaultFilename: "untitled-01.json",
 		Title:           "Export",
@@ -19,7 +26,14 @@ func (a *App) Export(r RequestResult) error {
 		return err
 	}
 
-	js, err := json.MarshalIndent(&r, "", "    ")
+	out := ExportFormat{
+		Request:        req,
+		RequestHeaders: reqHeaders,
+		RequestBodies:  reqBodies,
+		Result:         r,
+	}
+
+	js, err := json.MarshalIndent(&out, "", "    ")
 	if err != nil {
 		log.Println(err)
 		return err

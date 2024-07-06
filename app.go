@@ -35,7 +35,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func MakeRequest(c *http.Client,
+func makeRequest(c *http.Client,
 	r *http.Request) ([]byte, *http.Response, error) {
 	resp, err := c.Do(r)
 	if err != nil {
@@ -116,7 +116,7 @@ func (a *App) MakeRequest(
 		r.Header.Add(key, value)
 	}
 
-	res, httpResp, err := MakeRequest(a.client, r)
+	res, httpResp, err := makeRequest(a.client, r)
 	if err != nil {
 		result.Error = err.Error()
 		return result

@@ -1,5 +1,23 @@
 export namespace main {
 	
+	export class Request {
+	    method: string;
+	    url: string;
+	    headers: {[key: string]: string};
+	    body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Request(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.url = source["url"];
+	        this.headers = source["headers"];
+	        this.body = source["body"];
+	    }
+	}
 	export class RequestResult {
 	    Method: string;
 	    URL: string;

@@ -23,7 +23,7 @@ func (h *Headers) ToString() string {
 type Request struct {
 	Method string  `json:"method"`
 	Url    string  `json:"url"`
-	Header Headers `json:"header"`
+	Header Headers `json:"headers"`
 	Body   string  `json:"body"`
 }
 

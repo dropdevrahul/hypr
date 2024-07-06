@@ -24,24 +24,23 @@ import {Header} from './lib/header';
 import {RequestHeader} from './components/headerform';
 
 class Request {
-  Method: string;
-  URL: string;
-  Headers: Header;
-  Body: string;
+  method: string;
+  url: string;
+  headers: {[key: string]: string};
+  body: string;
 
   constructor(source: any = {}) {
     if ('string' === typeof source) source = JSON.parse(source);
-    this.Method = source["Method"];
-    this.URL = source["URL"];
-    this.Headers = source["Headers"];
-    this.Body = source["Body"];
+    this.method = source["Method"];
+    this.url = source["url"];
+    this.headers = source["headers"];
+    this.body = source["body"];
   }
 }
 
 
 function App() {
-  const [value, setValue] = useState('one');
-  const [reqBodies, setReqBodies] = useState([""])
+  const [reqBodies, setReqBodies] = useState<Array<string>>([""])
   const [reqHeaders, setReqHeaders] = useState<Array<Array<Header>>>([[
     {Key: "", Value: ""},
     {Key: "", Value: ""},
@@ -52,7 +51,9 @@ function App() {
     {Key: "", Value: ""},
   ]]);
 
-  const [responses, setResponses] = useState([new main.RequestResult])
+  console.log(reqHeaders)
+
+  const [responses, setResponses] = useState<Array<main.RequestResult>>([new main.RequestResult])
   const [activeReqBody, setActiveReqBody] = useState(0)
   const [activeReqHeader, setActiveReqHeader] = useState(0)
   const [request, setRequest] = useState(new Request({"Method": "GET"}))
@@ -76,18 +77,17 @@ function App() {
     }));
   };
 
-  const updateActiveReqTab = (e: any) => {
-    setActiveReqBody(e.target.value)
-    setActiveReqHeader(e.target.value)
+  const updateActiveReqTab = (e: any, index: number) => {
+    setActiveReqBody(index)
+    setActiveReqHeader(index)
   }
 
   const addReqBody = (e: any) => {
-    reqBodies.push(reqBodies[activeReqBody])
-    reqHeaders.push(reqHeaders[activeReqBody])
-    responses.push(responses[activeReqBody])
-    setReqBodies([...reqBodies])
-    setResponses([...responses])
-    setReqHeaders([...reqHeaders])
+    setReqBodies([...reqBodies].concat(...[reqBodies[activeReqBody]]))
+    setReqHeaders(reqHeaders.concat([[{Key: "", Value: ""}]]))
+    setResponses([...responses].concat(...[responses[activeReqBody]]))
+    setActiveReqBody(activeReqBody+1)
+    console.log(reqHeaders)
   }
 
   const updateReqBody = (e: any) => {
@@ -108,16 +108,14 @@ function App() {
   };
 
   const updateCurlBody = (e: any) => setCurlBody(e.target.value)
-  const headers: Map<string, string> = new Map<string, string>
-
-  for (let k of reqHeaders[activeReqBody]) {
-    headers.set(k.Key, k.Value)
-  }
-
-  console.log(headers)
 
   function makeRequest() {
-    MakeRequest(request.URL, request.Method,
+    const headers: Map<string, string> = new Map<string, string>
+
+    for (let k of reqHeaders[activeReqBody]) {
+      headers.set(k.Key, k.Value)
+    }
+    MakeRequest(request.url, request.method,
       reqBodies[activeReqBody],
       headers).then((r: main.RequestResult) => {
         setResult(r)
@@ -128,10 +126,10 @@ function App() {
   function importCurl() {
     RunCurl(curlBody).then((result: any) => {
       let req = new Request({
-        "Method": result.Method,
-        "URL": result.URL,
-        "Body": result.RequestBody,
-        "Headers": result.ReqHeaders,
+        "method": result.Method,
+        "url": result.URL,
+        "body": result.RequestBody,
+        "headers": result.ReqHeaders,
       })
       setRequest(req)
       setResult(result)
@@ -140,7 +138,7 @@ function App() {
   }
 
   function handleExport() {
-    Export(result)
+    Export(request, reqHeaders, reqBodies,  result)
   }
 
   const darkTheme = createTheme({
@@ -193,8 +191,8 @@ function App() {
             <Grid xs={2} sm={2} md={2} lg={1} sx={{marginTop: "1em"}}>
               <FormControl fullWidth variant='filled'>
                 <InputLabel>Method</InputLabel>
-                <Select label="Method" value={request.Method}
-                  color="success" name="Method" variant="filled"
+                <Select label="Method" value={request.method}
+                  color="success" name="method" variant="filled"
                   onChange={handleRequestChange}>
                   <MenuItem value={"GET"}>GET</MenuItem>
                   <MenuItem value={"POST"}>POST</MenuItem>
@@ -204,8 +202,8 @@ function App() {
             </Grid>
             <Grid xs={12} sm={12} md={8} lg={9}>
               <FormControl fullWidth>
-                <TextField id="url" variant="standard" value={request.URL} fullWidth
-                  onChange={handleRequestChange} autoComplete="off" name="URL" />
+                <TextField id="url" variant="standard" value={request.url} fullWidth
+                  onChange={handleRequestChange} autoComplete="off" name="url" />
               </FormControl>
             </Grid>
             <Grid xs={1} sm={1} md={1} lg={1}>
@@ -231,14 +229,27 @@ function App() {
                   reqHeaders.map((d, index) =>
                     <Button
                       key={index}
-                      variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                      variant={activeReqBody===index ? "contained": "outlined"} value={index} color="success" onClick={(e) => updateActiveReqTab(e, index)}
                     >{index + 1}</Button>)
                 }
                 <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}>
                   <AddIcon />
                 </Button>
               </ButtonGroup>
-              <RequestHeader activeReqHeader={activeReqHeader} reqHeaders={reqHeaders}></RequestHeader>
+              {
+                reqHeaders.map((p: Header[], baseIndex: number)=> p.map(
+                  (d: Header, index: number) => {
+                  return baseIndex === activeReqHeader &&  <RequestHeader key={index.toString() + baseIndex.toString()}
+                    update={(h: Header) => {
+                    reqHeaders[activeReqHeader][index] = h;
+                    setReqHeaders([...reqHeaders]);
+                    console.log(reqHeaders);
+                    }
+                    }
+                    header={reqHeaders[activeReqHeader][index]}></RequestHeader>
+                  }
+                  ))
+              }
             </Grid>
             <Grid xs={7}>
               <ButtonGroup>
@@ -246,10 +257,12 @@ function App() {
                 {
                   reqBodies.map((d, index) => <Button
                     key={index} style={{padding: "0em", minWidth: "2rem"}}
-                    variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                    value={index} color="success" onClick={(e) => updateActiveReqTab(e, index)}
+                    variant={activeReqBody===index ? "contained": "outlined"}
                   >{index + 1}</Button>)
                 }
-                <Button color="success" sx={{minWidth: "2rem", padding: "0em"}} onClick={addReqBody}><AddIcon /></Button>
+                <Button color="success" sx={{minWidth: "2rem", padding: "0em"}}
+                onClick={addReqBody}><AddIcon /></Button>
               </ButtonGroup>
               <TextField margin='dense' rows={16} sx={{width: "100%", height: "100%"}}
                 multiline variant="outlined" color="primary"
@@ -264,9 +277,11 @@ function App() {
               <ButtonGroup>
                 <Button color="success">Response Headers</Button>
                 {
-                  responses.map((d, index) => <Button
+                  responses.map((d, index) => 
+                  <Button
                     key={index} style={{padding: "0em", minWidth: "2rem"}}
-                    variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                    variant={activeReqBody===index ? "contained": "outlined"}
+                    value={index} color="success" onClick={(e) => updateActiveReqTab(e, index)}
                   >{index + 1}</Button>)
                 }
                 <Button color="success" onClick={addReqBody}><AddIcon /></Button>
@@ -280,7 +295,8 @@ function App() {
                 {
                   responses.map((d, index) => <Button
                     key={index} style={{padding: "0em", minWidth: "2rem"}}
-                    variant="contained" value={index} color="success" onClick={updateActiveReqTab}
+                    variant={activeReqBody===index ? "contained": "outlined"}
+                    value={index} color="success" onClick={(e) => updateActiveReqTab(e, index)}
                   >{index + 1}</Button>)
                 }
                 <Button color="success" onClick={addReqBody}><AddIcon /></Button>
