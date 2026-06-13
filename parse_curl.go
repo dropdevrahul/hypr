@@ -37,7 +37,7 @@ func (r *Request) ToJson(format bool) string {
 	}
 	_ = encoder.Encode(r)
 
-	return string(buffer.Bytes())
+	return buffer.String()
 }
 
 func Parse(curl string) (*Request, bool) {

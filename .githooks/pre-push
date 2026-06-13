@@ -1,0 +1,21 @@
+#!/bin/sh
+# pre-push: mirror CI checks locally before pushing.
+set -e
+
+echo "==> go vet ./..."
+go vet ./...
+
+echo "==> go test ./..."
+go test ./...
+
+if command -v golangci-lint > /dev/null 2>&1; then
+  echo "==> golangci-lint run ./..."
+  golangci-lint run ./...
+else
+  echo "golangci-lint not found, skipping (install from https://golangci-lint.run)"
+fi
+
+echo "==> frontend lint + build"
+( cd frontend && npm run lint && npm run build )
+
+echo "All pre-push checks passed."

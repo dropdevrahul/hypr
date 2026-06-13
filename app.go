@@ -90,7 +90,7 @@ func (a *App) RunCurl(curl string) RequestResult {
 
 type Header struct {
 	Key   string
-	value string
+	Value string
 }
 
 // Greet returns a greeting for the given name
@@ -132,7 +132,6 @@ func (a *App) MakeRequest(
 		}
 	}
 
-	texts := string(b.Bytes())
-	result.Body = texts
+	result.Body = b.String()
 	return result
 }

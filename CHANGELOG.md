@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform release workflow that builds macOS/Windows/Linux binaries on `v*` tags.
 - Contributor documentation: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
   issue/PR templates, and this changelog.
+- `golangci-lint` config (`.golangci.yml`) and a dedicated `lint` job in CI.
+- ESLint config for the frontend (`frontend/.eslintrc.cjs`); `npm run lint` added to the
+  frontend CI job and the pre-push hook.
+- Git hooks (`.githooks/pre-commit`, `.githooks/pre-push`) that enforce formatting and
+  mirror CI checks locally; enable with `make hooks`.
+- `Makefile` with `hooks`, `setup`, `lint`, `test`, and `build` targets.
 
 ### Changed
 - cURL import now populates the header rows and request body of the active tab.
@@ -24,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "add header" action moved next to the Request Headers title.
 
 ### Fixed
+- `//go:embed all:frontend/dist` caused a compile failure on clean checkouts because
+  `frontend/dist/` was gitignored; fixed by committing a `.gitkeep` and updating
+  `.gitignore` to track it.
+- Exported request headers now include their values; the `Header.value` field was
+  renamed to `Header.Value` so the JSON marshaller picks it up correctly.
 - Request headers were serialized to an empty object and not sent; they are now sent correctly.
 - Corrected the application window title (`Hpyr` → `Hypr`).
 

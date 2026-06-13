@@ -49,7 +49,10 @@ func (a *App) Export(req Request, reqHeaders [][]Header, reqBodies []string, r R
 	}
 
 	defer f.Close()
-	f.Write(js)
+	if _, err := f.Write(js); err != nil {
+		log.Println(err)
+		return err
+	}
 
 	return nil
 }
