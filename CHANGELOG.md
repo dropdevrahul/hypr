@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **v0.3 — Persistence:** JSON store at `$OS_CONFIG_DIR/hypr/store.json`; data survives restart.
+- **Collections:** create named collections, save requests to them (name + target collection dialog),
+  load saved requests into any tab with one click, delete collections and individual requests.
+- **History:** every sent request is recorded (method, URL, status, duration); shows in sidebar;
+  click an entry to restore the URL into the active tab; auto-capped at 200 entries; clear-all action.
+- **Session restore:** open tabs (URL, method, headers, params, body, auth, settings) are persisted
+  on every meaningful action and restored on the next launch.
+- **Sidebar:** collapsible left panel (toggle via `PanelLeftClose`/`PanelLeftOpen` icon) with
+  Collections and History sections; each section independently collapsible.
+- Per-tab method and URL are now properly isolated — switching tabs restores each tab's method+URL
+  (previously method and URL were shared across all tabs).
+- 5 new Go tests in `store_test.go` covering collection CRUD, request save/delete,
+  history append/clear/cap, and session save/restore (total: 34 tests).
+
+### Changed
+- Backend: added `Store` type backed by JSON, 10 new bound methods
+  (`ListCollections`, `SaveCollection`, `DeleteCollection`, `SaveRequest`, `DeleteRequest`,
+  `AppendHistory`, `ListHistory`, `ClearHistory`, `LoadSession`, `SaveSession`).
+- `App` struct gains a `store *Store` field initialized in `startup`; failure is non-fatal
+  (app runs without persistence rather than crashing).
+- `KVPair`, `StoredAuth`, `TabState`, `SavedRequest`, `Collection`, `HistoryEntry`, `Session`
+  Go types added to `store.go`.
+- Frontend layout changed from single-column scroll to sidebar + scrollable main area.
+- ESLint: `@typescript-eslint/no-empty-function` turned off (fire-and-forget `.catch(() => {})`
+  is intentional for non-critical persistence calls).
+
+### Added
 - Complete UI redesign on Tailwind CSS + shadcn/ui (Radix), with IBM Plex typography
   and a reusable component kit under `frontend/src/components/ui/`.
 - In-app JSON syntax highlighting for response bodies and headers.

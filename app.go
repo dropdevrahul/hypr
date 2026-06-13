@@ -15,6 +15,7 @@ import (
 type App struct {
 	ctx    context.Context
 	client *http.Client
+	store  *Store
 }
 
 // NewApp creates a new App application struct
@@ -34,6 +35,13 @@ func (a *App) startup(ctx context.Context) {
 		Transport: tr,
 	}
 	a.ctx = ctx
+
+	var err error
+	a.store, err = newStore()
+	if err != nil {
+		// Non-fatal: app runs fine without persistence
+		a.store = &Store{}
+	}
 }
 
 func doRequest(c *http.Client,

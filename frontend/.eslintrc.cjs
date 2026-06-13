@@ -20,5 +20,7 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'off',
     // The React root element is known to exist.
     '@typescript-eslint/no-non-null-assertion': 'off',
+    // Fire-and-forget .catch(() => {}) is intentional for non-critical persistence calls.
+    '@typescript-eslint/no-empty-function': 'off',
   },
 }
