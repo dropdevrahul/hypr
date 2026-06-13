@@ -3,7 +3,7 @@ export namespace main {
 	export class Request {
 	    method: string;
 	    url: string;
-	    headers: {[key: string]: string};
+	    headers: Record<string, string>;
 	    body: string;
 	
 	    static createFrom(source: any = {}) {
