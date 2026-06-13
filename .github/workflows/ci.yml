@@ -27,8 +27,21 @@ jobs:
       - name: Test
         run: go test -race ./...
 
+  lint:
+    name: Go lint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
+
   frontend:
-    name: Frontend (build + typecheck)
+    name: Frontend (lint + build + typecheck)
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -42,5 +55,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Build (runs tsc)
         run: npm run build

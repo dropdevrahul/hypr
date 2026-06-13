@@ -1,0 +1,23 @@
+# https://golangci-lint.run/usage/configuration/
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - misspell
+
+issues:
+  exclude-rules:
+    # Deferred Close() failures are not actionable here.
+    - linters: [errcheck]
+      source: "defer .*\\.Close\\(\\)"
+  # The nested scaffold under frontend/hypr is a separate module artifact.
+  exclude-dirs:
+    - frontend

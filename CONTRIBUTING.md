@@ -46,11 +46,40 @@ Before pushing, run the same checks CI runs:
 go vet ./...
 go test ./...
 
-# Frontend (typecheck + build)
-cd frontend && npm ci && npm run build
+# Go linting
+golangci-lint run ./...
+
+# Frontend (lint + typecheck + build)
+cd frontend && npm ci && npm run lint && npm run build
 ```
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs these on every push and pull request.
+
+### Local git hooks
+
+Enable the repo's git hooks to catch issues before they hit CI:
+
+```bash
+make hooks   # or: git config core.hooksPath .githooks
+```
+
+- `pre-commit` — fails if any Go file is not `gofmt`-formatted.
+- `pre-push` — mirrors CI (`go vet`, `go test`, `golangci-lint` if installed, frontend lint + build).
+
+`make setup` runs `make hooks` and installs frontend dependencies in one go.
+
+### Git hooks
+
+The repo ships pre-commit and pre-push hooks in `.githooks/`. Enable them once per clone:
+
+```bash
+make hooks
+# or manually:
+git config core.hooksPath .githooks
+```
+
+The **pre-commit** hook rejects any unformatted Go files (`gofmt -w .` to fix).
+The **pre-push** hook mirrors the full CI suite locally (go vet, go test, golangci-lint if available, and the frontend lint + build).
 
 ## Releasing
 

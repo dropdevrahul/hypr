@@ -1,6 +1,9 @@
 build/bin
 node_modules
-frontend/dist
+# Keep the dir tracked (via .gitkeep) so `//go:embed all:frontend/dist`
+# compiles on a clean checkout; ignore the built assets themselves.
+frontend/dist/*
+!frontend/dist/.gitkeep
 
 # OS / editor cruft
 .DS_Store

@@ -1,0 +1,12 @@
+#!/bin/sh
+# pre-commit: ensure all Go files are gofmt-formatted.
+set -e
+
+unformatted=$(gofmt -l $(find . -name '*.go' -not -path './frontend/*') 2>/dev/null)
+if [ -n "$unformatted" ]; then
+  echo "The following Go files are not gofmt-formatted:"
+  echo "$unformatted"
+  echo ""
+  echo "Run: gofmt -w ."
+  exit 1
+fi
