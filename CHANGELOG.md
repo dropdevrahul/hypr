@@ -23,11 +23,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Git hooks (`.githooks/pre-commit`, `.githooks/pre-push`) that enforce formatting and
   mirror CI checks locally; enable with `make hooks`.
 - `Makefile` with `hooks`, `setup`, `lint`, `test`, and `build` targets.
+- **v0.2 — Response insight (bundle A):** response status code + status text, request
+  duration, and body size shown next to the Response heading; status chip is colored by
+  HTTP class.
+- **v0.2 — Body Pretty/Raw toggle** and **search-in-response** with match count, plus
+  **Copy** and **Save** buttons (the latter via a new `SaveTextFile` Go binding using a
+  native save dialog).
+- **v0.2 — Request power (bundle B):** query-param builder synced two-way with the URL
+  field; **Auth** section (None / Bearer / Basic / API key with header-or-query target);
+  **Body** selector (None / JSON with a Format button / Form / Raw); per-request
+  **Settings** (timeout, follow-redirects, verify TLS); **Copy as cURL** action that
+  mirrors cURL import.
 
 ### Changed
+- Backend: introduced `RequestSpec` and a new `Send(spec) RequestResult` bound method
+  that builds a per-request `http.Client` from settings (timeout, redirects, TLS verify).
+  `MakeRequest` is retained as a thin wrapper for backward compatibility.
+- `RequestResult` now includes `Status`, `StatusText`, `DurationMs`, and `SizeBytes`.
+- Non-JSON response bodies are returned verbatim instead of swallowed when JSON pretty-
+  printing fails.
+- Request editor reorganized into tabbed sections (Headers / Params / Body / Auth /
+  Settings) within a single panel.
 - cURL import now populates the header rows and request body of the active tab.
 - The response view now follows the active request tab.
 - The "add header" action moved next to the Request Headers title.
+
+### Deferred (planned for v0.3)
+- Multipart / file-upload body type.
+- Iframe HTML preview tab for the response body.
 
 ### Fixed
 - `//go:embed all:frontend/dist` caused a compile failure on clean checkouts because

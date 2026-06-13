@@ -13,3 +13,11 @@ export function MakeRequest(arg1, arg2, arg3, arg4) {
 export function RunCurl(arg1) {
   return window['go']['main']['App']['RunCurl'](arg1);
 }
+
+export function Send(arg1) {
+  return window['go']['main']['App']['Send'](arg1);
+}
+
+export function SaveTextFile(arg1, arg2) {
+  return window['go']['main']['App']['SaveTextFile'](arg1, arg2);
+}

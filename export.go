@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -50,6 +51,41 @@ func (a *App) Export(req Request, reqHeaders [][]Header, reqBodies []string, r R
 
 	defer f.Close()
 	if _, err := f.Write(js); err != nil {
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+// saveTextFile opens a native save dialog and writes plain text to the chosen path.
+func saveTextFile(ctx context.Context, defaultName, contents string) error {
+	if defaultName == "" {
+		defaultName = "response.txt"
+	}
+
+	fp, err := runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{
+		DefaultFilename: defaultName,
+		Title:           "Save response body",
+	})
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	if fp == "" {
+		// user cancelled the dialog
+		return nil
+	}
+
+	f, err := os.Create(fp)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(contents); err != nil {
 		log.Println(err)
 		return err
 	}
