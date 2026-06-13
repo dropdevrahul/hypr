@@ -4,6 +4,10 @@ import {main} from '../models';
 
 export function Export(arg1:main.Request,arg2:Array<any>,arg3:Array<string>,arg4:main.RequestResult):Promise<void>;
 
-export function MakeRequest(arg1:string,arg2:string,arg3:string,arg4:main.Headers):Promise<main.RequestResult>;
+export function MakeRequest(arg1:string,arg2:string,arg3:string,arg4:{[key: string]: string}):Promise<main.RequestResult>;
 
 export function RunCurl(arg1:string):Promise<main.RequestResult>;
+
+export function Send(arg1:main.RequestSpec):Promise<main.RequestResult>;
+
+export function SaveTextFile(arg1:string,arg2:string):Promise<void>;
