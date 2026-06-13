@@ -21,3 +21,43 @@ export function Send(arg1) {
 export function SaveTextFile(arg1, arg2) {
   return window['go']['main']['App']['SaveTextFile'](arg1, arg2);
 }
+
+export function ListCollections() {
+  return window['go']['main']['App']['ListCollections']();
+}
+
+export function SaveCollection(arg1) {
+  return window['go']['main']['App']['SaveCollection'](arg1);
+}
+
+export function DeleteCollection(arg1) {
+  return window['go']['main']['App']['DeleteCollection'](arg1);
+}
+
+export function SaveRequest(arg1, arg2) {
+  return window['go']['main']['App']['SaveRequest'](arg1, arg2);
+}
+
+export function DeleteRequest(arg1, arg2) {
+  return window['go']['main']['App']['DeleteRequest'](arg1, arg2);
+}
+
+export function AppendHistory(arg1) {
+  return window['go']['main']['App']['AppendHistory'](arg1);
+}
+
+export function ListHistory(arg1) {
+  return window['go']['main']['App']['ListHistory'](arg1);
+}
+
+export function ClearHistory() {
+  return window['go']['main']['App']['ClearHistory']();
+}
+
+export function LoadSession() {
+  return window['go']['main']['App']['LoadSession']();
+}
+
+export function SaveSession(arg1) {
+  return window['go']['main']['App']['SaveSession'](arg1);
+}
