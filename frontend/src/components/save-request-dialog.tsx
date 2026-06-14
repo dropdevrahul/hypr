@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {BookMarked, FolderPlus} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
@@ -18,12 +18,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import type {Collection} from '@/lib/store-types'
+import {main} from '../../wailsjs/go/models'
 
 interface SaveRequestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  collections: Collection[]
+  collections: main.Collection[]
   defaultName: string
   onSave: (name: string, collectionId: string) => void
   onCreateCollection: (name: string) => Promise<string>
@@ -39,19 +39,21 @@ export function SaveRequestDialog({
 }: SaveRequestDialogProps) {
   const [name, setName] = useState(defaultName)
   const [collectionId, setCollectionId] = useState(collections[0]?.id ?? '')
-  const [creatingNew, setCreatingNew] = useState(false)
+  const [creatingNew, setCreatingNew] = useState(collections.length === 0)
   const [newColName, setNewColName] = useState('')
 
-  // Sync defaultName when dialog opens
-  const handleOpenChange = (v: boolean) => {
-    if (v) {
+  // Reset fields whenever the dialog opens. Driven by `open` rather than the Radix
+  // onOpenChange callback, because opening is controlled by the parent (the sidebar
+  // button) and so onOpenChange does not fire on open.
+  useEffect(() => {
+    if (open) {
       setName(defaultName)
       setCollectionId(collections[0]?.id ?? '')
-      setCreatingNew(false)
+      setCreatingNew(collections.length === 0)
       setNewColName('')
     }
-    onOpenChange(v)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const handleSave = async () => {
     const reqName = name.trim() || defaultName
@@ -70,7 +72,7 @@ export function SaveRequestDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
