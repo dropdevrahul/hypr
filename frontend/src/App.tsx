@@ -36,6 +36,8 @@ import {
   Link2,
   PanelLeftClose,
   PanelLeftOpen,
+  Layers,
+  Check,
 } from 'lucide-react'
 import {KVRow} from './components/kv-row'
 import {AuthForm} from './components/auth-form'
@@ -65,13 +67,24 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import {addRowAt, emptyKV, kvToRecord, removeRowAt, updateRowsAt, type KV} from './lib/kv'
+import {appendRow, dropRow, emptyKV, kvToRecord, setRow, type KV} from './lib/kv'
 import {applyAuth, emptyAuth, type AuthState} from './lib/auth'
 import {defaultSettings, type ReqSettings} from './lib/settings'
 import {encodeFormBody, parseUrlParams, rebuildUrlWithParams} from './lib/url-sync'
 import {buildCurl} from './lib/curl-builder'
 import {formatDuration, formatSize, statusChipClass} from './lib/formatters'
-import type {Collection, HistoryEntry, SavedRequest, Session, TabState} from './lib/store-types'
+import {readDraft, writeDraft} from './lib/autosave'
+import {
+  emptyPayload,
+  emptyRequest,
+  emptyResult,
+  initialHeaderRows,
+  toStoredPayload,
+  updatePayload,
+  updateRequest,
+  type Payload,
+  type RequestTab,
+} from './lib/model'
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'] as const
 
@@ -87,7 +100,13 @@ const METHOD_HSL: {[key: string]: string} = {
 
 const methodColor = (m: string) => `hsl(${METHOD_HSL[m] ?? '84 78% 56%'})`
 
-const emptyResult = () => new main.RequestResult()
+const genId = (): string =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const formatClock = (ms: number): string =>
+  new Date(ms).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
 // "Key: Value\nKey: Value" -> KV[]
 function parseHeaderLines(raw: string): KV[] {
@@ -103,25 +122,13 @@ function parseHeaderLines(raw: string): KV[] {
   return rows.length ? rows : [emptyKV()]
 }
 
-const initialHeaderRows = (): KV[] => [emptyKV(), emptyKV(), emptyKV()]
-
 function App() {
-  const [activeTab, setActiveTab] = useState(0)
+  // ── Two-level nested state ────────────────────────────────────
+  const [requests, setRequests] = useState<RequestTab[]>([emptyRequest()])
+  const [activeRequest, setActiveRequest] = useState(0)
+
   const [loading, setLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  // Per-tab parallel arrays (all must stay in lockstep)
-  const [methods, setMethods] = useState<string[]>(['GET'])
-  const [urls, setUrls] = useState<string[]>([''])
-  const [headers, setHeaders] = useState<KV[][]>([initialHeaderRows()])
-  const [params, setParams] = useState<KV[][]>([[emptyKV()]])
-  const [bodyTypes, setBodyTypes] = useState<BodyType[]>(['none'])
-  const [jsonBodies, setJsonBodies] = useState<string[]>([''])
-  const [rawBodies, setRawBodies] = useState<string[]>([''])
-  const [formRows, setFormRows] = useState<KV[][]>([[emptyKV()]])
-  const [auths, setAuths] = useState<AuthState[]>([emptyAuth()])
-  const [settings, setSettings] = useState<ReqSettings[]>([defaultSettings()])
-  const [responses, setResponses] = useState<main.RequestResult[]>([emptyResult()])
 
   // UI state
   const [requestSection, setRequestSection] = useState('headers')
@@ -133,189 +140,240 @@ function App() {
   const [saveOpen, setSaveOpen] = useState(false)
 
   // Persistence state
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [collections, setCollections] = useState<main.Collection[]>([])
+  const [history, setHistory] = useState<main.HistoryEntry[]>([])
+  const [focusCollectionId, setFocusCollectionId] = useState<string | undefined>()
   const sessionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Gate session writes until the initial load completes, so a slow load
+  // can't be clobbered by an early persist of the empty default state.
+  const hydratedRef = useRef(false)
+  const [lastSaved, setLastSaved] = useState<number | null>(null)
 
-  // ── Derived values for active tab ─────────────────────────────
-  const method = methods[activeTab] ?? 'GET'
-  const url = urls[activeTab] ?? ''
-  const result = responses[activeTab] ?? emptyResult()
-  const hasResponse = Boolean(result.Body || result.Error || result.HeadersStr || result.Status)
+  // ── Derived accessors for active request / payload ────────────
+  const req = requests[activeRequest] ?? emptyRequest()
+  const pIdx = req.activePayload
+  const payload = req.payloads[pIdx] ?? emptyPayload()
+  const method = req.method
+  const url = req.url
+  const result = payload.response ?? emptyResult()
+  const hasResponse = Boolean(
+    result.Body || result.Error || result.HeadersStr || result.Status
+  )
 
-  // ── Session helpers ───────────────────────────────────────────
-  function buildTabState(i: number): TabState {
+  // ── Session persistence ───────────────────────────────────────
+  function buildRequestState(r: RequestTab) {
     return {
-      method: methods[i] ?? 'GET',
-      url: urls[i] ?? '',
-      headers: headers[i] ?? initialHeaderRows(),
-      params: params[i] ?? [emptyKV()],
-      auth: auths[i] ?? emptyAuth(),
-      bodyType: bodyTypes[i] ?? 'none',
-      jsonBody: jsonBodies[i] ?? '',
-      rawBody: rawBodies[i] ?? '',
-      formRows: formRows[i] ?? [emptyKV()],
-      settings: settings[i] ?? defaultSettings(),
+      savedId: r.savedId ?? '',
+      method: r.method,
+      url: r.url,
+      auth: r.auth,
+      settings: r.settings,
+      payloads: r.payloads.map(toStoredPayload),
+      activePayload: r.activePayload,
     }
   }
 
-  function persistSession(overrideActiveTab?: number) {
+  function persistSession(nextRequests?: RequestTab[], nextActive?: number) {
+    const rs = nextRequests ?? requests
+    const active = nextActive ?? activeRequest
     if (sessionSaveTimer.current) clearTimeout(sessionSaveTimer.current)
     sessionSaveTimer.current = setTimeout(() => {
-      const tabCount = methods.length
-      const openTabs = Array.from({length: tabCount}, (_, i) => buildTabState(i))
-      const session: Session = {openTabs, activeTab: overrideActiveTab ?? activeTab}
-      SaveSession(session).catch(() => {})
+      SaveSession({
+        openRequests: rs.map(buildRequestState),
+        activeRequest: active,
+      } as any).catch(() => {})
     }, 800)
   }
 
-  function restoreSession(session: Session) {
-    const tabs = session.openTabs
-    if (!tabs?.length) return
-    setMethods(tabs.map((t) => t.method || 'GET'))
-    setUrls(tabs.map((t) => t.url || ''))
-    setHeaders(tabs.map((t) => (t.headers?.length ? t.headers : initialHeaderRows())))
-    setParams(tabs.map((t) => (t.params?.length ? t.params : [emptyKV()])))
-    setAuths(tabs.map((t) => t.auth || emptyAuth()))
-    setBodyTypes(tabs.map((t) => (t.bodyType as BodyType) || 'none'))
-    setJsonBodies(tabs.map((t) => t.jsonBody || ''))
-    setRawBodies(tabs.map((t) => t.rawBody || ''))
-    setFormRows(tabs.map((t) => (t.formRows?.length ? t.formRows : [emptyKV()])))
-    setSettings(tabs.map((t) => t.settings || defaultSettings()))
-    setResponses(tabs.map(() => emptyResult()))
-    setActiveTab(Math.min(session.activeTab || 0, tabs.length - 1))
+  // Autosave whenever requests / activeRequest change (after initial hydration):
+  // an instant localStorage draft + the durable Go store (debounced).
+  useEffect(() => {
+    if (!hydratedRef.current) return
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current)
+    draftSaveTimer.current = setTimeout(() => {
+      const ts = writeDraft({
+        openRequests: requests.map(buildRequestState),
+        activeRequest,
+      })
+      if (ts) setLastSaved(ts)
+    }, 400)
+    persistSession()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requests, activeRequest])
+
+  function payloadFromStored(p: any): Payload {
+    return {
+      headers: p?.headers?.length ? p.headers : initialHeaderRows(),
+      params: p?.params?.length ? p.params : [emptyKV()],
+      bodyType: (p?.bodyType as BodyType) || 'none',
+      jsonBody: p?.jsonBody || '',
+      rawBody: p?.rawBody || '',
+      formRows: p?.formRows?.length ? p.formRows : [emptyKV()],
+      response: p?.response ? main.RequestResult.createFrom(p.response) : emptyResult(),
+    }
   }
 
-  // ── On mount: load session + collections + history ─────────────
+  function requestFromStored(t: any): RequestTab {
+    const payloads: Payload[] = t?.payloads?.length
+      ? t.payloads.map(payloadFromStored)
+      : [emptyPayload()]
+    return {
+      savedId: t?.savedId || undefined,
+      method: t?.method || 'GET',
+      url: t?.url || '',
+      auth: (t?.auth as AuthState) || emptyAuth(),
+      settings: (t?.settings as ReqSettings) || defaultSettings(),
+      payloads,
+      activePayload: Math.min(t?.activePayload || 0, payloads.length - 1),
+    }
+  }
+
+  // ── On mount: restore session (localStorage draft first, then Go store) ──
   useEffect(() => {
-    LoadSession()
-      .then((s) => {
-        if (s?.openTabs?.length) restoreSession(s)
-      })
-      .catch(() => {})
+    const draft = readDraft()
+    if (draft?.openRequests?.length) {
+      // Fast path: hydrate instantly from the local draft.
+      const rs = draft.openRequests.map(requestFromStored)
+      setRequests(rs)
+      setActiveRequest(Math.min(draft.activeRequest || 0, rs.length - 1))
+      setLastSaved(draft.savedAt)
+      hydratedRef.current = true
+    } else {
+      LoadSession()
+        .then((s: any) => {
+          if (s?.openRequests?.length) {
+            const rs = s.openRequests.map(requestFromStored)
+            setRequests(rs)
+            setActiveRequest(Math.min(s.activeRequest || 0, rs.length - 1))
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          hydratedRef.current = true
+        })
+    }
 
     ListCollections()
-      .then((c) => setCollections(c ?? []))
+      .then((c) => setCollections((c as main.Collection[]) ?? []))
       .catch(() => {})
 
     ListHistory(50)
-      .then((h) => setHistory(h ?? []))
+      .then((h) => setHistory((h as main.HistoryEntry[]) ?? []))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Tab plumbing ──────────────────────────────────────────────
-  const addNewTab = () => {
-    const n = methods.length
-    setMethods([...methods, 'GET'])
-    setUrls([...urls, ''])
-    setHeaders([...headers, initialHeaderRows()])
-    setParams([...params, [emptyKV()]])
-    setBodyTypes([...bodyTypes, 'none'])
-    setJsonBodies([...jsonBodies, ''])
-    setRawBodies([...rawBodies, ''])
-    setFormRows([...formRows, [emptyKV()]])
-    setAuths([...auths, emptyAuth()])
-    setSettings([...settings, defaultSettings()])
-    setResponses([...responses, emptyResult()])
-    setActiveTab(n)
-    persistSession(n)
+  // ── Request-level tab plumbing ────────────────────────────────
+  const addRequest = () => {
+    setRequests((prev) => [...prev, emptyRequest()])
+    setActiveRequest(requests.length)
   }
 
-  const closeTab = (e: React.MouseEvent, index: number) => {
+  const closeRequest = (e: React.MouseEvent, index: number) => {
     e.stopPropagation()
-    if (methods.length === 1) return
-    const drop = <T,>(arr: T[]) => arr.filter((_, i) => i !== index)
-    setMethods(drop(methods))
-    setUrls(drop(urls))
-    setHeaders(drop(headers))
-    setParams(drop(params))
-    setBodyTypes(drop(bodyTypes))
-    setJsonBodies(drop(jsonBodies))
-    setRawBodies(drop(rawBodies))
-    setFormRows(drop(formRows))
-    setAuths(drop(auths))
-    setSettings(drop(settings))
-    setResponses(drop(responses))
-    const next = activeTab >= index && activeTab > 0 ? activeTab - 1 : activeTab
-    if (activeTab >= index && activeTab > 0) setActiveTab(next)
-    persistSession(next)
+    if (requests.length === 1) return
+    const next = requests.filter((_, i) => i !== index)
+    setRequests(next)
+    setActiveRequest(
+      activeRequest > index ? activeRequest - 1 : Math.min(activeRequest, next.length - 1)
+    )
   }
 
-  const switchTab = (i: number) => {
-    setActiveTab(i)
-    persistSession(i)
+  const switchRequest = (index: number) => setActiveRequest(index)
+
+  // ── Payload-level tab plumbing (within active request) ────────
+  const addPayload = () => {
+    setRequests((prev) => {
+      const r = prev[activeRequest]
+      const cur = r.payloads[r.activePayload]
+      const copy: Payload = {
+        ...cur,
+        response: emptyResult(),
+        headers: cur.headers.map((x) => ({...x})),
+        params: cur.params.map((x) => ({...x})),
+        formRows: cur.formRows.map((x) => ({...x})),
+      }
+      return updateRequest(prev, activeRequest, {
+        payloads: [...r.payloads, copy],
+        activePayload: r.payloads.length,
+      })
+    })
   }
 
-  // ── Method / URL handlers ─────────────────────────────────────
-  const setMethod = (m: string) => {
-    const n = [...methods]
-    n[activeTab] = m
-    setMethods(n)
+  const closePayload = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation()
+    setRequests((prev) => {
+      const r = prev[activeRequest]
+      if (r.payloads.length === 1) return prev
+      const nextPayloads = r.payloads.filter((_, i) => i !== index)
+      const nextActive =
+        r.activePayload > index
+          ? r.activePayload - 1
+          : Math.min(r.activePayload, nextPayloads.length - 1)
+      return updateRequest(prev, activeRequest, {
+        payloads: nextPayloads,
+        activePayload: nextActive,
+      })
+    })
   }
 
-  const onUrlChange = (newUrl: string) => {
-    const n = [...urls]
-    n[activeTab] = newUrl
-    setUrls(n)
-    const parsed = parseUrlParams(newUrl)
-    if (parsed) {
-      const np = [...params]
-      np[activeTab] = parsed
-      setParams(np)
-    }
-  }
+  const switchPayload = (index: number) =>
+    setRequests((prev) => updateRequest(prev, activeRequest, {activePayload: index}))
 
-  // ── Header handlers ───────────────────────────────────────────
+  // ── Request-level field handlers (shared across payloads) ─────
+  const setMethod = (m: string) =>
+    setRequests((prev) => updateRequest(prev, activeRequest, {method: m}))
+  const onUrlChange = (newUrl: string) =>
+    setRequests((prev) => updateRequest(prev, activeRequest, {url: newUrl}))
+  const setAuth = (a: AuthState) =>
+    setRequests((prev) => updateRequest(prev, activeRequest, {auth: a}))
+  const setRequestSettings = (s: ReqSettings) =>
+    setRequests((prev) => updateRequest(prev, activeRequest, {settings: s}))
+
+  // ── Payload-level field handlers ──────────────────────────────
   const onHeaderChange = (idx: number, field: 'Key' | 'Value', value: string) =>
-    setHeaders(updateRowsAt(headers, activeTab, idx, field, value))
-  const onHeaderRemove = (idx: number) => setHeaders(removeRowAt(headers, activeTab, idx))
-  const onHeaderAdd = () => setHeaders(addRowAt(headers, activeTab))
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {headers: setRow(payload.headers, idx, field, value)})
+    )
+  const onHeaderRemove = (idx: number) =>
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {headers: dropRow(payload.headers, idx)})
+    )
+  const onHeaderAdd = () =>
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {headers: appendRow(payload.headers)})
+    )
 
-  // ── Params handlers (with URL sync) ───────────────────────────
-  const onParamChange = (idx: number, field: 'Key' | 'Value', value: string) => {
-    const next = updateRowsAt(params, activeTab, idx, field, value)
-    setParams(next)
-    const nu = [...urls]
-    nu[activeTab] = rebuildUrlWithParams(url, next[activeTab])
-    setUrls(nu)
-  }
-  const onParamRemove = (idx: number) => {
-    const next = removeRowAt(params, activeTab, idx)
-    setParams(next)
-    const nu = [...urls]
-    nu[activeTab] = rebuildUrlWithParams(url, next[activeTab])
-    setUrls(nu)
-  }
-  const onParamAdd = () => setParams(addRowAt(params, activeTab))
+  const onParamChange = (idx: number, field: 'Key' | 'Value', value: string) =>
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {params: setRow(payload.params, idx, field, value)})
+    )
+  const onParamRemove = (idx: number) =>
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {params: dropRow(payload.params, idx)})
+    )
+  const onParamAdd = () =>
+    setRequests((prev) =>
+      updatePayload(prev, activeRequest, pIdx, {params: appendRow(payload.params)})
+    )
 
-  // ── Body / auth / settings handlers ───────────────────────────
-  const setBodyType = (t: BodyType) => {
-    const n = [...bodyTypes]; n[activeTab] = t; setBodyTypes(n)
-  }
-  const setJsonBody = (s: string) => {
-    const n = [...jsonBodies]; n[activeTab] = s; setJsonBodies(n)
-  }
-  const setRawBody = (s: string) => {
-    const n = [...rawBodies]; n[activeTab] = s; setRawBodies(n)
-  }
-  const setFormRowsForTab = (rows: KV[]) => {
-    const n = [...formRows]; n[activeTab] = rows; setFormRows(n)
-  }
-  const setAuth = (a: AuthState) => {
-    const n = [...auths]; n[activeTab] = a; setAuths(n)
-  }
-  const setSettingsForTab = (s: ReqSettings) => {
-    const n = [...settings]; n[activeTab] = s; setSettings(n)
-  }
+  const setBodyType = (t: BodyType) =>
+    setRequests((prev) => updatePayload(prev, activeRequest, pIdx, {bodyType: t}))
+  const setJsonBody = (s: string) =>
+    setRequests((prev) => updatePayload(prev, activeRequest, pIdx, {jsonBody: s}))
+  const setRawBody = (s: string) =>
+    setRequests((prev) => updatePayload(prev, activeRequest, pIdx, {rawBody: s}))
+  const setFormRowsForPayload = (rows: KV[]) =>
+    setRequests((prev) => updatePayload(prev, activeRequest, pIdx, {formRows: rows}))
 
-  // ── Build the final RequestSpec for the active tab ────────────
+  // ── Build the final RequestSpec for the active payload ────────
   function buildSpec(): main.RequestSpec {
-    const userHeaders = kvToRecord(headers[activeTab])
-    const auth = applyAuth(auths[activeTab])
+    const userHeaders = kvToRecord(payload.headers)
+    const auth = applyAuth(req.auth)
     const mergedHeaders: Record<string, string> = {...userHeaders, ...auth.headers}
 
-    let finalUrl = rebuildUrlWithParams(url, params[activeTab])
+    let finalUrl = rebuildUrlWithParams(req.url, payload.params)
     if (auth.query.length) {
       try {
         const u = new URL(finalUrl)
@@ -329,28 +387,26 @@ function App() {
       }
     }
 
-    const bodyType = bodyTypes[activeTab]
     let body: main.BodySpec = main.BodySpec.createFrom({type: 'none', raw: ''})
-
-    if (bodyType === 'json') {
-      const raw = jsonBodies[activeTab]
+    if (payload.bodyType === 'json') {
+      const raw = payload.jsonBody
       if (raw && !mergedHeaders['Content-Type']) {
         mergedHeaders['Content-Type'] = 'application/json'
       }
       body = main.BodySpec.createFrom({type: 'json', raw})
-    } else if (bodyType === 'form') {
-      const raw = encodeFormBody(formRows[activeTab])
+    } else if (payload.bodyType === 'form') {
+      const raw = encodeFormBody(payload.formRows)
       if (raw && !mergedHeaders['Content-Type']) {
         mergedHeaders['Content-Type'] = 'application/x-www-form-urlencoded'
       }
       body = main.BodySpec.createFrom({type: 'form', raw})
-    } else if (bodyType === 'raw') {
-      body = main.BodySpec.createFrom({type: 'raw', raw: rawBodies[activeTab]})
+    } else if (payload.bodyType === 'raw') {
+      body = main.BodySpec.createFrom({type: 'raw', raw: payload.rawBody})
     }
 
-    const s = settings[activeTab]
+    const s = req.settings
     return main.RequestSpec.createFrom({
-      method,
+      method: req.method,
       url: finalUrl,
       headers: mergedHeaders,
       body,
@@ -359,9 +415,7 @@ function App() {
   }
 
   const storeResponse = (r: main.RequestResult) => {
-    const next = [...responses]
-    next[activeTab] = r
-    setResponses(next)
+    setRequests((prev) => updatePayload(prev, activeRequest, pIdx, {response: r}))
     setResponseTab(r.Body ? 'body' : r.HeadersStr ? 'headers' : 'body')
     setBodyView('pretty')
     setSearch('')
@@ -373,7 +427,6 @@ function App() {
     SendBinding(spec)
       .then((r) => {
         storeResponse(r)
-        // Append to history (fire-and-forget)
         AppendHistory({
           id: '',
           method: spec.method,
@@ -382,31 +435,45 @@ function App() {
           statusText: r.StatusText,
           durationMs: r.DurationMs,
           sentAt: new Date().toISOString(),
-        }).then(() => {
-          ListHistory(50).then((h) => setHistory(h ?? [])).catch(() => {})
-        }).catch(() => {})
-        persistSession()
+        } as any)
+          .then(() => {
+            ListHistory(50).then((h) => setHistory((h as main.HistoryEntry[]) ?? [])).catch(() => {})
+          })
+          .catch(() => {})
       })
       .finally(() => setLoading(false))
   }
 
   function importCurl() {
     RunCurl(curlBody).then((r) => {
-      const nm = [...methods]; nm[activeTab] = r.Method || 'GET'; setMethods(nm)
-      const nu = [...urls]; nu[activeTab] = r.URL || ''; setUrls(nu)
       const parsed = parseHeaderLines(r.ReqHeaders || '')
-      const nh = [...headers]
-      nh[activeTab] = parsed.length ? parsed : initialHeaderRows()
-      setHeaders(nh)
-      if (r.RequestBody) {
-        setBodyType('raw')
-        setRawBody(r.RequestBody)
-      }
       const p = parseUrlParams(r.URL || '')
-      if (p) {
-        const np = [...params]; np[activeTab] = p; setParams(np)
-      }
-      storeResponse(r)
+      setRequests((prev) =>
+        prev.map((reqTab, i) => {
+          if (i !== activeRequest) return reqTab
+          const updatedPayload: Payload = {
+            ...reqTab.payloads[reqTab.activePayload],
+            headers: parsed.length ? parsed : initialHeaderRows(),
+            params: p ?? [emptyKV()],
+            response: r,
+          }
+          if (r.RequestBody) {
+            updatedPayload.bodyType = 'raw'
+            updatedPayload.rawBody = r.RequestBody
+          }
+          return {
+            ...reqTab,
+            method: r.Method || 'GET',
+            url: r.URL || '',
+            payloads: reqTab.payloads.map((pl, j) =>
+              j === reqTab.activePayload ? updatedPayload : pl
+            ),
+          }
+        })
+      )
+      setResponseTab(r.Body ? 'body' : 'headers')
+      setBodyView('pretty')
+      setSearch('')
       setCurlOpen(false)
       setCurlBody('')
     })
@@ -414,22 +481,26 @@ function App() {
 
   function handleExport() {
     Export(
-      {method, url, headers: kvToRecord(headers[activeTab]), body: rawBodies[activeTab] || jsonBodies[activeTab] || ''} as unknown as main.Request,
-      headers as unknown as Array<unknown>,
-      rawBodies,
+      {
+        method: req.method,
+        url: req.url,
+        headers: kvToRecord(payload.headers),
+        body: payload.rawBody || payload.jsonBody || '',
+      } as unknown as main.Request,
+      payload.headers as unknown as Array<unknown>,
+      [payload.rawBody || payload.jsonBody || ''],
       result
     )
   }
 
   function copyAsCurl() {
     const spec = buildSpec()
-    const bodyType = bodyTypes[activeTab]
     const cmd = buildCurl({
       method: spec.method,
       url: spec.url,
       headers: spec.headers,
       body: spec.body.raw || undefined,
-      bodyFlag: bodyType === 'json' ? '--data-raw' : '-d',
+      bodyFlag: payload.bodyType === 'json' ? '--data-raw' : '-d',
     })
     navigator.clipboard.writeText(cmd)
   }
@@ -442,33 +513,30 @@ function App() {
     if (result.Body) SaveTextFile('response.txt', result.Body)
   }
 
-  // ── Load a saved request into the active tab ──────────────────
-  function loadRequestToTab(req: SavedRequest) {
-    const i = activeTab
-    setMethods((p) => { const n = [...p]; n[i] = req.method || 'GET'; return n })
-    setUrls((p) => { const n = [...p]; n[i] = req.url || ''; return n })
-    setHeaders((p) => { const n = [...p]; n[i] = req.headers?.length ? req.headers : initialHeaderRows(); return n })
-    setParams((p) => { const n = [...p]; n[i] = req.params?.length ? req.params : [emptyKV()]; return n })
-    setAuths((p) => { const n = [...p]; n[i] = req.auth || emptyAuth(); return n })
-    setBodyTypes((p) => { const n = [...p]; n[i] = (req.bodyType as BodyType) || 'none'; return n })
-    setJsonBodies((p) => { const n = [...p]; n[i] = req.jsonBody || ''; return n })
-    setRawBodies((p) => { const n = [...p]; n[i] = req.rawBody || ''; return n })
-    setFormRows((p) => { const n = [...p]; n[i] = req.formRows?.length ? req.formRows : [emptyKV()]; return n })
-    setSettings((p) => { const n = [...p]; n[i] = req.settings || defaultSettings(); return n })
+  // ── Load a saved request: switch to it if already open, else open a tab ──
+  function loadRequestToTab(saved: main.SavedRequest) {
+    const existing = requests.findIndex((r) => r.savedId && r.savedId === saved.id)
+    if (existing !== -1) {
+      setActiveRequest(existing)
+      return
+    }
+    const newReq: RequestTab = {...requestFromStored(saved), savedId: saved.id}
+    setRequests((prev) => [...prev, newReq])
+    setActiveRequest(requests.length)
   }
 
-  function loadHistoryToTab(entry: HistoryEntry) {
-    setMethods((p) => { const n = [...p]; n[activeTab] = entry.method; return n })
-    setUrls((p) => { const n = [...p]; n[activeTab] = entry.url; return n })
+  function loadHistoryToTab(entry: main.HistoryEntry) {
+    setRequests((prev) =>
+      updateRequest(prev, activeRequest, {method: entry.method, url: entry.url})
+    )
   }
 
   // ── Collection / save-request handlers ───────────────────────
   async function handleNewCollection(name: string): Promise<string> {
-    const col: Collection = {id: '', name, requests: []}
-    await SaveCollection(col)
+    await SaveCollection({id: '', name, requests: []} as any)
     const updated = await ListCollections()
-    setCollections(updated ?? [])
-    return updated?.find((c) => c.name === name)?.id ?? ''
+    setCollections((updated as main.Collection[]) ?? [])
+    return (updated as main.Collection[])?.find((c) => c.name === name)?.id ?? ''
   }
 
   async function handleDeleteCollection(id: string) {
@@ -479,7 +547,7 @@ function App() {
   async function handleDeleteRequest(collectionId: string, reqId: string) {
     await DeleteRequestBinding(collectionId, reqId)
     const updated = await ListCollections()
-    setCollections(updated ?? [])
+    setCollections((updated as main.Collection[]) ?? [])
   }
 
   async function handleClearHistory() {
@@ -488,17 +556,22 @@ function App() {
   }
 
   async function handleSaveRequest(name: string, collectionId: string) {
-    const tab = buildTabState(activeTab)
-    const req: SavedRequest = {
-      ...tab,
-      id: '',
+    // Reuse the tab's existing id so re-saving updates in place; otherwise mint one
+    // up front so we can link the open tab to it (and avoid duplicates on re-save).
+    const id = req.savedId || genId()
+    const reqState = buildRequestState(req)
+    await SaveRequestBinding(collectionId, {
+      ...reqState,
+      id,
       name,
       createdAt: '',
       updatedAt: '',
-    }
-    await SaveRequestBinding(collectionId, req)
+    } as any)
+    // Link the active tab to the saved request.
+    setRequests((prev) => updateRequest(prev, activeRequest, {savedId: id}))
     const updated = await ListCollections()
-    setCollections(updated ?? [])
+    setCollections((updated as main.Collection[]) ?? [])
+    setFocusCollectionId(collectionId)
   }
 
   const matches = result.Body ? countMatches(result.Body, search) : 0
@@ -510,9 +583,11 @@ function App() {
         <Sidebar
           collections={collections}
           history={history}
+          focusCollectionId={focusCollectionId}
           onLoadRequest={loadRequestToTab}
           onLoadHistory={loadHistoryToTab}
           onSaveRequest={() => setSaveOpen(true)}
+          onNewTab={addRequest}
           onNewCollection={handleNewCollection}
           onDeleteCollection={handleDeleteCollection}
           onDeleteRequest={handleDeleteRequest}
@@ -553,6 +628,15 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {lastSaved && (
+              <span
+                className="mr-1 flex items-center gap-1.5 text-[0.7rem] font-medium text-muted-foreground"
+                title={`Autosaved at ${formatClock(lastSaved)}`}
+              >
+                <Check className="h-3.5 w-3.5 text-primary" />
+                Autosaved {formatClock(lastSaved)}
+              </span>
+            )}
             <Button variant="outline" size="sm" onClick={() => setCurlOpen(true)}>
               <Code2 />
               Import cURL
@@ -570,7 +654,55 @@ function App() {
 
         <Separator className="my-5 bg-border/60" />
 
-        {/* ── Request bar ─────────────────────────────────────── */}
+        {/* ── Request tabs (top level) ────────────────────────── */}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-1">
+            {requests.map((_, index) => {
+              const active = index === activeRequest
+              return (
+                <button
+                  key={index}
+                  onClick={() => switchRequest(index)}
+                  className={[
+                    'group flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 font-mono text-xs font-semibold tracking-wide transition-all',
+                    active
+                      ? 'border-primary/40 bg-primary/15 text-primary'
+                      : 'border-border/70 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground',
+                  ].join(' ')}
+                >
+                  <span
+                    className={[
+                      'h-1.5 w-1.5 rounded-full',
+                      active ? 'bg-primary' : 'bg-muted-foreground/40',
+                    ].join(' ')}
+                  />
+                  REQ {String(index + 1).padStart(2, '0')}
+                  {requests.length > 1 && (
+                    <span
+                      role="button"
+                      aria-label="Close request"
+                      onClick={(e) => closeRequest(e, index)}
+                      className="-mr-1 grid h-5 w-5 place-items-center rounded text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={addRequest}
+            className="h-10 w-10 shrink-0 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
+            aria-label="New request"
+          >
+            <Plus />
+          </Button>
+        </div>
+
+        {/* ── Request bar (shared URL + method) ───────────────── */}
         <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/60 p-2.5 backdrop-blur-sm sm:flex-row sm:items-center">
           <Select value={method} onValueChange={setMethod}>
             <SelectTrigger
@@ -611,37 +743,35 @@ function App() {
           </Button>
         </div>
 
-        {/* ── Request tabs ────────────────────────────────────── */}
-        <div className="mt-5 flex items-center gap-2">
+        {/* ── Payload tabs (within active request) ────────────── */}
+        <div className="mt-4 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 pr-2 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <Layers className="h-3.5 w-3.5" />
+            Payloads
+          </div>
           <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-1">
-            {methods.map((_, index) => {
-              const active = index === activeTab
+            {req.payloads.map((_, index) => {
+              const active = index === pIdx
               return (
                 <button
                   key={index}
-                  onClick={() => switchTab(index)}
+                  onClick={() => switchPayload(index)}
                   className={[
-                    'group flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 font-mono text-xs font-semibold tracking-wide transition-all',
+                    'group flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[0.7rem] font-semibold transition-all',
                     active
                       ? 'border-primary/40 bg-primary/15 text-primary'
                       : 'border-border/70 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground',
                   ].join(' ')}
                 >
-                  <span
-                    className={[
-                      'h-1.5 w-1.5 rounded-full',
-                      active ? 'bg-primary' : 'bg-muted-foreground/40',
-                    ].join(' ')}
-                  />
-                  REQ {String(index + 1).padStart(2, '0')}
-                  {methods.length > 1 && (
+                  P{index + 1}
+                  {req.payloads.length > 1 && (
                     <span
                       role="button"
-                      aria-label="Close tab"
-                      onClick={(e) => closeTab(e, index)}
-                      className="-mr-1 grid h-5 w-5 place-items-center rounded text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
+                      aria-label="Close payload"
+                      onClick={(e) => closePayload(e, index)}
+                      className="-mr-0.5 grid h-4 w-4 place-items-center rounded text-muted-foreground/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3 w-3" />
                     </span>
                   )}
                 </button>
@@ -650,17 +780,17 @@ function App() {
           </div>
           <Button
             variant="outline"
-            size="icon"
-            onClick={addNewTab}
-            className="h-10 w-10 shrink-0 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
-            aria-label="New request tab"
+            size="icon-sm"
+            onClick={addPayload}
+            className="h-7 w-7 shrink-0 border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"
+            aria-label="New payload"
           >
-            <Plus />
+            <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
 
         {/* ── Request editor (Headers / Params / Body / Auth / Settings) ── */}
-        <section className="mt-4 rounded-xl border border-border/80 bg-card/50 p-4 backdrop-blur-sm">
+        <section className="mt-3 rounded-xl border border-border/80 bg-card/50 p-4 backdrop-blur-sm">
           <Tabs value={requestSection} onValueChange={setRequestSection}>
             <TabsList className="mb-3 h-10 border-b border-border/60">
               <TabsTrigger
@@ -713,12 +843,12 @@ function App() {
                 </Button>
               </div>
               <div className="flex flex-col gap-2">
-                {headers[activeTab].map((row, idx) => (
+                {payload.headers.map((row, idx) => (
                   <KVRow
                     key={idx}
                     row={row}
                     index={idx}
-                    total={headers[activeTab].length}
+                    total={payload.headers.length}
                     keyPlaceholder="Header"
                     onChange={onHeaderChange}
                     onRemove={onHeaderRemove}
@@ -740,12 +870,12 @@ function App() {
                 </Button>
               </div>
               <div className="flex flex-col gap-2">
-                {params[activeTab].map((row, idx) => (
+                {payload.params.map((row, idx) => (
                   <KVRow
                     key={idx}
                     row={row}
                     index={idx}
-                    total={params[activeTab].length}
+                    total={payload.params.length}
                     onChange={onParamChange}
                     onRemove={onParamRemove}
                   />
@@ -755,23 +885,29 @@ function App() {
 
             <TabsContent value="body" className="m-0">
               <BodyEditor
-                bodyType={bodyTypes[activeTab]}
+                bodyType={payload.bodyType}
                 onTypeChange={setBodyType}
-                jsonBody={jsonBodies[activeTab]}
+                jsonBody={payload.jsonBody}
                 onJsonChange={setJsonBody}
-                rawBody={rawBodies[activeTab]}
+                rawBody={payload.rawBody}
                 onRawChange={setRawBody}
-                formRows={formRows[activeTab]}
-                onFormRowsChange={setFormRowsForTab}
+                formRows={payload.formRows}
+                onFormRowsChange={setFormRowsForPayload}
               />
             </TabsContent>
 
             <TabsContent value="auth" className="m-0">
-              <AuthForm auth={auths[activeTab]} onChange={setAuth} />
+              <p className="mb-3 text-xs text-muted-foreground">
+                Shared across all payloads in this request.
+              </p>
+              <AuthForm auth={req.auth} onChange={setAuth} />
             </TabsContent>
 
             <TabsContent value="settings" className="m-0">
-              <SettingsForm settings={settings[activeTab]} onChange={setSettingsForTab} />
+              <p className="mb-3 text-xs text-muted-foreground">
+                Shared across all payloads in this request.
+              </p>
+              <SettingsForm settings={req.settings} onChange={setRequestSettings} />
             </TabsContent>
           </Tabs>
         </section>
@@ -784,6 +920,9 @@ function App() {
                 <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">
                   Response
                 </h2>
+                <span className="font-mono text-[0.7rem] text-muted-foreground/70">
+                  P{pIdx + 1}
+                </span>
                 {result.Status > 0 && (
                   <span
                     className={[
@@ -933,7 +1072,7 @@ function App() {
               <Inbox className="mb-4 h-12 w-12 text-muted-foreground/40" />
               <p className="text-base font-semibold text-muted-foreground">No response yet</p>
               <p className="mt-1 text-sm text-muted-foreground/70">
-                Enter a URL and hit Send, or import a cURL command to get started.
+                Enter a URL and hit Send, or add payloads to compare variations.
               </p>
             </div>
           )}
@@ -949,7 +1088,7 @@ function App() {
               Import cURL
             </DialogTitle>
             <DialogDescription>
-              Paste a cURL command — it runs immediately and fills this tab.
+              Paste a cURL command — it runs immediately and fills the active payload.
             </DialogDescription>
           </DialogHeader>
           <div className="p-5">

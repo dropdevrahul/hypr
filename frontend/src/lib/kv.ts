@@ -13,29 +13,15 @@ export const kvToRecord = (rows: KV[]): Record<string, string> => {
   return out
 }
 
-export const updateRowsAt = (
-  rows: KV[][],
-  tab: number,
+// Single-array (per-payload) immutable row helpers.
+export const setRow = (
+  rows: KV[],
   idx: number,
   field: 'Key' | 'Value',
   value: string
-): KV[][] => {
-  const next = [...rows]
-  const tabRows = [...next[tab]]
-  tabRows[idx] = {...tabRows[idx], [field]: value}
-  next[tab] = tabRows
-  return next
-}
+): KV[] => rows.map((r, i) => (i === idx ? {...r, [field]: value} : r))
 
-export const removeRowAt = (rows: KV[][], tab: number, idx: number): KV[][] => {
-  if (rows[tab].length === 1) return rows
-  const next = [...rows]
-  next[tab] = next[tab].filter((_, i) => i !== idx)
-  return next
-}
+export const dropRow = (rows: KV[], idx: number): KV[] =>
+  rows.length === 1 ? rows : rows.filter((_, i) => i !== idx)
 
-export const addRowAt = (rows: KV[][], tab: number): KV[][] => {
-  const next = [...rows]
-  next[tab] = [...next[tab], emptyKV()]
-  return next
-}
+export const appendRow = (rows: KV[]): KV[] => [...rows, emptyKV()]

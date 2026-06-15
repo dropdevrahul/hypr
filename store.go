@@ -35,36 +35,43 @@ type StoredAuth struct {
 	APIKeyTarget string `json:"apiKeyTarget"`
 }
 
-// TabState captures the full editable state of a single request tab.
-type TabState struct {
-	Method   string          `json:"method"`
-	URL      string          `json:"url"`
-	Headers  []KVPair        `json:"headers"`
-	Params   []KVPair        `json:"params"`
-	Auth     StoredAuth      `json:"auth"`
-	BodyType string          `json:"bodyType"`
-	JSONBody string          `json:"jsonBody"`
-	RawBody  string          `json:"rawBody"`
-	FormRows []KVPair        `json:"formRows"`
-	Settings RequestSettings `json:"settings"`
+// Payload is one variation tested against the parent request's URL/method/auth/settings.
+// Each payload has its own headers, params, body, and last response.
+type Payload struct {
+	Headers  []KVPair       `json:"headers"`
+	Params   []KVPair       `json:"params"`
+	BodyType string         `json:"bodyType"`
+	JSONBody string         `json:"jsonBody"`
+	RawBody  string         `json:"rawBody"`
+	FormRows []KVPair       `json:"formRows"`
+	Response *RequestResult `json:"response,omitempty"`
 }
 
-// SavedRequest is a named request stored in a Collection.
+// TabState captures a request tab: method/url/auth/settings are shared across all
+// of its payloads. SavedID links the tab back to the SavedRequest it was loaded
+// from (empty for unsaved scratch tabs), used to de-dupe "open" vs "switch".
+type TabState struct {
+	SavedID       string          `json:"savedId"`
+	Method        string          `json:"method"`
+	URL           string          `json:"url"`
+	Auth          StoredAuth      `json:"auth"`
+	Settings      RequestSettings `json:"settings"`
+	Payloads      []Payload       `json:"payloads"`
+	ActivePayload int             `json:"activePayload"`
+}
+
+// SavedRequest is a named request (with all its payloads) stored in a Collection.
 type SavedRequest struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	Method    string          `json:"method"`
-	URL       string          `json:"url"`
-	Headers   []KVPair        `json:"headers"`
-	Params    []KVPair        `json:"params"`
-	Auth      StoredAuth      `json:"auth"`
-	BodyType  string          `json:"bodyType"`
-	JSONBody  string          `json:"jsonBody"`
-	RawBody   string          `json:"rawBody"`
-	FormRows  []KVPair        `json:"formRows"`
-	Settings  RequestSettings `json:"settings"`
-	CreatedAt time.Time       `json:"createdAt"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Method        string          `json:"method"`
+	URL           string          `json:"url"`
+	Auth          StoredAuth      `json:"auth"`
+	Settings      RequestSettings `json:"settings"`
+	Payloads      []Payload       `json:"payloads"`
+	ActivePayload int             `json:"activePayload"`
+	CreatedAt     string          `json:"createdAt"` // RFC3339
+	UpdatedAt     string          `json:"updatedAt"` // RFC3339
 }
 
 // Collection is a named group of SavedRequests.
@@ -75,20 +82,21 @@ type Collection struct {
 }
 
 // HistoryEntry records a brief snapshot of a completed request.
+// Timestamps are RFC3339 strings so the JS/Go boundary can pass them as plain strings.
 type HistoryEntry struct {
-	ID         string    `json:"id"`
-	Method     string    `json:"method"`
-	URL        string    `json:"url"`
-	Status     int       `json:"status"`
-	StatusText string    `json:"statusText"`
-	DurationMs int64     `json:"durationMs"`
-	SentAt     time.Time `json:"sentAt"`
+	ID         string `json:"id"`
+	Method     string `json:"method"`
+	URL        string `json:"url"`
+	Status     int    `json:"status"`
+	StatusText string `json:"statusText"`
+	DurationMs int64  `json:"durationMs"`
+	SentAt     string `json:"sentAt"`
 }
 
-// Session is the persisted UI session (open tabs + active tab index).
+// Session is the persisted UI session (open request tabs + active request index).
 type Session struct {
-	OpenTabs  []TabState `json:"openTabs"`
-	ActiveTab int        `json:"activeTab"`
+	OpenRequests  []TabState `json:"openRequests"`
+	ActiveRequest int        `json:"activeRequest"`
 }
 
 // storeData is the root JSON document.
@@ -188,7 +196,7 @@ func (a *App) DeleteCollection(id string) error {
 func (a *App) SaveRequest(collectionID string, req SavedRequest) error {
 	a.store.mu.Lock()
 	defer a.store.mu.Unlock()
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	for ci := range a.store.data.Collections {
 		if a.store.data.Collections[ci].ID != collectionID {
 			continue
@@ -239,8 +247,8 @@ func (a *App) AppendHistory(entry HistoryEntry) error {
 	if entry.ID == "" {
 		entry.ID = newID()
 	}
-	if entry.SentAt.IsZero() {
-		entry.SentAt = time.Now()
+	if entry.SentAt == "" {
+		entry.SentAt = time.Now().Format(time.RFC3339)
 	}
 	h := append([]HistoryEntry{entry}, a.store.data.History...)
 	if len(h) > maxHistoryEntries {

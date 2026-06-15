@@ -55,7 +55,23 @@ func TestStore_SaveAndDeleteRequest(t *testing.T) {
 
 	_ = app.SaveCollection(Collection{ID: "col1", Name: "Test"})
 
-	req := SavedRequest{Name: "Get users", Method: "GET", URL: "https://example.com/users"}
+	req := SavedRequest{
+		Name:   "Get users",
+		Method: "GET",
+		URL:    "https://example.com/users",
+		Payloads: []Payload{
+			{
+				BodyType: "json",
+				JSONBody: `{"a":1}`,
+				Response: &RequestResult{
+					Status:     200,
+					StatusText: "200 OK",
+					Body:       `{"ok":true}`,
+				},
+			},
+			{BodyType: "json", JSONBody: `{"a":2}`},
+		},
+	}
 	if err := app.SaveRequest("col1", req); err != nil {
 		t.Fatalf("SaveRequest: %v", err)
 	}
@@ -64,9 +80,18 @@ func TestStore_SaveAndDeleteRequest(t *testing.T) {
 	if len(cols[0].Requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(cols[0].Requests))
 	}
-	reqID := cols[0].Requests[0].ID
+	saved := cols[0].Requests[0]
+	reqID := saved.ID
 	if reqID == "" {
 		t.Fatal("expected request ID to be assigned")
+	}
+	if len(saved.Payloads) != 2 || saved.Payloads[1].JSONBody != `{"a":2}` {
+		t.Fatalf("expected 2 payloads to round-trip, got %+v", saved.Payloads)
+	}
+	if saved.Payloads[0].Response == nil ||
+		saved.Payloads[0].Response.Status != 200 ||
+		saved.Payloads[0].Response.Body != `{"ok":true}` {
+		t.Fatalf("expected response to round-trip, got %+v", saved.Payloads[0].Response)
 	}
 
 	if err := app.DeleteRequest("col1", reqID); err != nil {
@@ -83,7 +108,7 @@ func TestStore_History(t *testing.T) {
 	defer cleanup()
 
 	for i := 0; i < 3; i++ {
-		_ = app.AppendHistory(HistoryEntry{Method: "GET", URL: "https://example.com", SentAt: time.Now()})
+		_ = app.AppendHistory(HistoryEntry{Method: "GET", URL: "https://example.com", SentAt: time.Now().Format(time.RFC3339)})
 	}
 
 	h := app.ListHistory(2)
@@ -102,16 +127,35 @@ func TestStore_Session(t *testing.T) {
 	defer cleanup()
 
 	session := Session{
-		OpenTabs:  []TabState{{Method: "POST", URL: "https://api.example.com"}},
-		ActiveTab: 0,
+		OpenRequests: []TabState{{
+			Method: "POST",
+			URL:    "https://api.example.com",
+			Payloads: []Payload{{
+				BodyType: "raw",
+				RawBody:  "hello",
+				Response: &RequestResult{
+					Status:     201,
+					StatusText: "201 Created",
+					Body:       "created",
+				},
+			}},
+		}},
+		ActiveRequest: 0,
 	}
 	if err := app.SaveSession(session); err != nil {
 		t.Fatalf("SaveSession: %v", err)
 	}
 
 	got := app.LoadSession()
-	if len(got.OpenTabs) != 1 || got.OpenTabs[0].Method != "POST" {
+	if len(got.OpenRequests) != 1 || got.OpenRequests[0].Method != "POST" {
 		t.Fatalf("unexpected session: %+v", got)
+	}
+	if len(got.OpenRequests[0].Payloads) != 1 || got.OpenRequests[0].Payloads[0].RawBody != "hello" {
+		t.Fatalf("expected payload to round-trip, got %+v", got.OpenRequests[0].Payloads)
+	}
+	if got.OpenRequests[0].Payloads[0].Response == nil ||
+		got.OpenRequests[0].Payloads[0].Response.Status != 201 {
+		t.Fatalf("expected response to round-trip, got %+v", got.OpenRequests[0].Payloads[0].Response)
 	}
 }
 

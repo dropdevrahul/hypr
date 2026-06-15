@@ -33,7 +33,15 @@ The frontend↔backend boundary is the only non-obvious part. Wails binds the Go
 
 **Curl parsing** (`parse_curl.go`): a hand-written state machine over `go-shellwords` tokens. Supports `-X/--request`, `-H/--header`, `-d/--data[-ascii|-raw]`, `-A/--user-agent`, `-u/--user` (→ Basic auth), `-I/--head`, `-b/--cookie`. Does **not** handle `--data-binary`, `--data-urlencode`, or multipart. Input must start with `curl `.
 
-**Frontend state** (`frontend/src/App.tsx`): the UI is multi-tab ("Request 1", "Request 2", …). State is held as **parallel arrays indexed by tab** — `reqBodies[]`, `reqHeaders[][]`, `responses[]` — all kept in sync in `addNewTab`/`closeTab`. When editing tab logic, update all three arrays together or they desync. Headers in the UI are `{Key, Value}` objects (`src/lib/header.ts`); they're converted to a plain `Record<string, string>` before being passed to Go (which expects `main.Headers`).
+**Core premise:** Hypr's reason to exist vs. Postman/Insomnia is testing **multiple payloads against a single request URL** on one screen. This is encoded in a **two-level tab model** — don't collapse it.
+
+**Frontend state** (`frontend/src/App.tsx`, types in `src/lib/model.ts`): a single nested structure, **not** parallel arrays.
+- Top level: `requests: RequestTab[]` + `activeRequest` index. Each `RequestTab` owns the **shared** `method`, `url`, `auth`, `settings`, plus `payloads: Payload[]` and `activePayload`.
+- Inner level: each `Payload` owns its own `headers`, `params`, `bodyType`/`jsonBody`/`rawBody`/`formRows`, and `response`. All payloads of a request share that request's url/method/auth/settings.
+- All edits go through the immutable updaters `updateRequest(requests, ri, patch)` and `updatePayload(requests, ri, pi, patch)` in `model.ts`. Per-payload KV-row edits use `setRow`/`dropRow`/`appendRow` from `src/lib/kv.ts`.
+- **URL ↔ params is one-way at send time only**: the URL bar is the shared base URL; the Params tab edits the active payload; `buildSpec()` merges `req.url` + payload params + auth query when sending. Editing one does not rewrite the other.
+- `response` is **never persisted**; `toStoredPayload()` strips it before saving. Session/collections persist via the Go store (`store.go`): `Session.openRequests`/`activeRequest`, `SavedRequest` carries all payloads.
+- Headers in the UI are `{Key, Value}` objects (`src/lib/kv.ts`); converted to a plain `Record<string, string>` before being passed to Go.
 
 **UI stack**: the frontend uses **Tailwind CSS + shadcn/ui** (Radix primitives in `frontend/src/components/ui/`, `cn` helper in `src/lib/utils.ts`, design tokens as CSS variables in `src/index.css`, theme in `tailwind.config.js`). Icons are `lucide-react`. JSON responses are highlighted by the in-house `src/components/json-view.tsx` (no `react-json-pretty`). The `@/*` import alias maps to `src/`.
 

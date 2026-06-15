@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Autosave to localStorage:** the working session (all open requests + payloads) is
+  mirrored to browser `localStorage` on every change, in addition to the durable Go store.
+  On launch the local draft is restored instantly (falling back to the Go store), and an
+  "Autosaved HH:MM:SS" indicator in the top bar shows the last save time.
+- **Two-level request/payload model:** the UI now has top-level **request tabs** (each with
+  its own URL, method, auth, and settings) and, within each, inner **payload tabs** that share
+  the request's URL/method/auth/settings but each carry their own headers, params, body, and
+  response. This restores Hypr's core premise — comparing multiple payloads against one URL —
+  while letting several independent requests stay open side by side. "New Request" (sidebar +
+  top "+") adds a top-level request; the "+" on the Payloads strip adds a payload.
 - **v0.3 — Persistence:** JSON store at `$OS_CONFIG_DIR/hypr/store.json`; data survives restart.
 - **Collections:** create named collections, save requests to them (name + target collection dialog),
   load saved requests into any tab with one click, delete collections and individual requests.
@@ -17,10 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on every meaningful action and restored on the next launch.
 - **Sidebar:** collapsible left panel (toggle via `PanelLeftClose`/`PanelLeftOpen` icon) with
   Collections and History sections; each section independently collapsible.
-- Per-tab method and URL are now properly isolated — switching tabs restores each tab's method+URL
-  (previously method and URL were shared across all tabs).
-- 5 new Go tests in `store_test.go` covering collection CRUD, request save/delete,
-  history append/clear/cap, and session save/restore (total: 34 tests).
+- Go tests in `store_test.go` covering collection CRUD, request save/delete (incl. payload
+  round-trip), history append/clear/cap, and session save/restore.
 
 ### Changed
 - Backend: added `Store` type backed by JSON, 10 new bound methods

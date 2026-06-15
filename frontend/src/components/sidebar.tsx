@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -13,19 +13,21 @@ import {
 import {Button} from '@/components/ui/button'
 import {Separator} from '@/components/ui/separator'
 import {cn} from '@/lib/utils'
-import type {Collection, HistoryEntry, SavedRequest} from '@/lib/store-types'
+import {main} from '../../wailsjs/go/models'
 import {formatDuration, statusChipClass} from '@/lib/formatters'
 
 interface SidebarProps {
-  collections: Collection[]
-  history: HistoryEntry[]
-  onLoadRequest: (req: SavedRequest) => void
-  onLoadHistory: (entry: HistoryEntry) => void
+  collections: main.Collection[]
+  history: main.HistoryEntry[]
+  focusCollectionId?: string
+  onLoadRequest: (req: main.SavedRequest) => void
+  onLoadHistory: (entry: main.HistoryEntry) => void
   onNewCollection: (name: string) => void
   onDeleteCollection: (id: string) => void
   onDeleteRequest: (collectionId: string, reqId: string) => void
   onClearHistory: () => void
   onSaveRequest: () => void
+  onNewTab: () => void
 }
 
 const METHOD_COLOR: Record<string, string> = {
@@ -49,6 +51,7 @@ function MethodBadge({method}: {method: string}) {
 export function Sidebar({
   collections,
   history,
+  focusCollectionId,
   onLoadRequest,
   onLoadHistory,
   onNewCollection,
@@ -56,12 +59,21 @@ export function Sidebar({
   onDeleteRequest,
   onClearHistory,
   onSaveRequest,
+  onNewTab,
 }: SidebarProps) {
   const [collectionsOpen, setCollectionsOpen] = useState(true)
   const [historyOpen, setHistoryOpen] = useState(true)
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
   const [newCollectionName, setNewCollectionName] = useState('')
   const [creatingCollection, setCreatingCollection] = useState(false)
+
+  // Auto-expand a collection when a request is saved to it
+  useEffect(() => {
+    if (focusCollectionId) {
+      setCollectionsOpen(true)
+      setExpandedCollections((prev) => new Set([...prev, focusCollectionId]))
+    }
+  }, [focusCollectionId])
 
   const toggleCollection = (id: string) => {
     setExpandedCollections((prev) => {
@@ -82,8 +94,16 @@ export function Sidebar({
 
   return (
     <aside className="flex w-[240px] shrink-0 flex-col border-r border-border/60 bg-card/30">
-      {/* Save button */}
-      <div className="p-3">
+      {/* Action buttons */}
+      <div className="flex flex-col gap-2 p-3">
+        <Button
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={onNewTab}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New Request
+        </Button>
         <Button
           variant="outline"
           size="sm"
